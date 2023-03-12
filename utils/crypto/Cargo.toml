@@ -1,0 +1,11 @@
+[package]
+name = "rt-evm-crypto"
+version = "0.2.1"
+authors = []
+edition = "2021"
+
+[dependencies]
+ophelia = "0.3"
+ophelia-secp256k1 = "0.3"
+
+[dev-dependencies]

@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "api",
+    "executor",
+    "storage",
+    "model",
+    "utils/crypto",
+]

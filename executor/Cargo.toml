@@ -1,0 +1,25 @@
+[package]
+edition = "2021"
+name = "rt-evm-executor"
+version = "0.1.0"
+
+[dependencies]
+ruc = "4.0.1"
+rlp = "0.5"
+evm = "0.37"
+
+triehash = "0.8.4"
+blake3-hasher = "0.1.0"
+
+# deps of precompiles
+az = "1.2"
+bn = { package = "substrate-bn", version = "0.6" }
+rug = "1.19"
+sha2 = "0.10"
+ripemd = "0.1"
+
+rt-evm-model = { path = "../model" }
+rt-evm-crypto = { path = "../utils/crypto" }
+rt-evm-storage = { path = "../storage" }
+
+[dev-dependencies]

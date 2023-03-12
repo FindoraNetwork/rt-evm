@@ -6,9 +6,10 @@ pub use ethereum_types::{
 };
 use ophelia::{PublicKey, UncompressedPublicKey};
 use ophelia_secp256k1::Secp256k1PublicKey;
-use ruc::{crypto::hash_single, *};
+use ruc::*;
 use serde::{de, Deserialize, Serialize};
 use std::{fmt, result::Result as StdResult, str::FromStr};
+use tiny_keccak::{Hasher as _, Keccak};
 
 pub struct Hasher;
 
@@ -17,7 +18,14 @@ impl Hasher {
         if data.as_ref().is_empty() {
             return NIL_DATA;
         }
-        Hash::from(hash_single(data.as_ref()))
+
+        let mut res: [u8; 32] = [0; 32];
+
+        let mut hasher = Keccak::v256();
+        hasher.update(data.as_ref());
+        hasher.finalize(&mut res);
+
+        Hash::from(res)
     }
 }
 

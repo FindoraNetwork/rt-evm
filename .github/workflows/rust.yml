@@ -16,3 +16,5 @@ jobs:
     - uses: actions/checkout@v2
     - name: Run lints
       run: make update; make lint
+    - name: Run tests
+      run: make update; make test

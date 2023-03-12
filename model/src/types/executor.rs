@@ -12,6 +12,7 @@ use crate::types::{Hash, Hasher, Header, MerkleRoot, Proposal, H160, U256};
 pub struct ExecResp {
     pub state_root: MerkleRoot,
     pub receipt_root: MerkleRoot,
+    pub transaction_root: MerkleRoot,
     pub gas_used: u64,
     pub fee_used: U256, // sum(<gas in tx * gas price setted by tx> ...)
     pub txs_resp: Vec<TxResp>,

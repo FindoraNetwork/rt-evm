@@ -1,4 +1,4 @@
-use crate::{TXS_MANAGER, TXS_PENDING_CNT};
+use crate::TXS_MANAGER;
 use rt_evm_executor::{RTEvmExecutor, RTEvmExecutorAdapter};
 use rt_evm_model::{
     async_trait,
@@ -113,13 +113,9 @@ impl APIAdapter for DefaultAPIAdapter {
         }
     }
 
-    async fn get_pending_tx_count(&self, address: H160) -> Result<U256> {
-        Ok(TXS_PENDING_CNT
-            .read()
-            .unwrap()
-            .get(&address)
-            .map(|&n| n.into())
-            .unwrap_or_default())
+    async fn get_pending_tx_count(&self, _address: H160) -> Result<U256> {
+        // fixme
+        Ok(0.into())
     }
 
     async fn evm_call(

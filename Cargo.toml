@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "api",
+    "mempool",
     "executor",
     "storage",
     "model",

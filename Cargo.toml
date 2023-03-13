@@ -1,9 +1,27 @@
 [workspace]
 members = [
-    "api",
-    "mempool",
-    "executor",
-    "storage",
-    "model",
-    "utils/crypto",
+    "crates/api",
+    "crates/mempool",
+    "crates/executor",
+    "crates/storage",
+    "crates/model",
+    "crates/utils/crypto",
 ]
+
+[package]
+name = "rt-evm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ruc = "4.0.1"
+
+rt-evm-api = { path = "crates/api" }
+rt-evm-mempool = { path = "crates/mempool" }
+rt-evm-executor = { path = "crates/executor" }
+rt-evm-storage = { path = "crates/storage" }
+rt-evm-model = { path = "crates/model" }
+
+[[example]]
+name = "demo"
+crate-type = ["bin"]

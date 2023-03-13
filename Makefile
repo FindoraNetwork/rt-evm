@@ -6,6 +6,7 @@ fmt:
 lint:
 	cargo clippy --workspace
 	cargo clippy --workspace --tests
+	cargo clippy --workspace --examples
 
 test:
 	cargo test --workspace

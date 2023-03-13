@@ -85,6 +85,12 @@ impl MptStore {
     }
 }
 
+///
+/// # NOTE
+///
+/// The referenced field **MUST** be placed after the field that references it,
+/// this is to ensure that the `drop`s can be executed in the correct order,
+/// so that UB will not occur
 pub struct MptOnce<'a> {
     mpt: MptMut<'a>,
 
@@ -115,10 +121,18 @@ impl<'a> MptOnce<'a> {
     }
 }
 
+///
+/// # NOTE
+///
+/// The referenced field **MUST** be placed after the field that references it,
+/// this is to ensure that the `drop`s can be executed in the correct order,
+/// so that UB will not occur
 pub struct MptMut<'a> {
+    trie: TrieDBMut<'a, H>,
+
     // self-reference
     #[allow(dead_code)]
-    root: Box<TrieHash<LayoutV1<H>>>,
+    cache: Box<TrieCache<'a, H>>,
 
     // self-reference
     #[allow(dead_code)]
@@ -126,9 +140,7 @@ pub struct MptMut<'a> {
 
     // self-reference
     #[allow(dead_code)]
-    cache: Box<TrieCache<'a, H>>,
-
-    trie: TrieDBMut<'a, H>,
+    root: Box<TrieHash<LayoutV1<H>>>,
 }
 
 impl<'a> MptMut<'a> {
@@ -194,11 +206,18 @@ impl<'a> MptMut<'a> {
     }
 }
 
-//  ReadOnly instance
+///
+/// # NOTE
+///
+/// The referenced field **MUST** be placed after the field that references it,
+/// this is to ensure that the `drop`s can be executed in the correct order,
+/// so that UB will not occur
 pub struct MptRo<'a> {
+    trie: TrieDB<'a, 'a, H>,
+
     // self-reference
     #[allow(dead_code)]
-    root: Box<TrieHash<LayoutV1<H>>>,
+    cache: Box<TrieCache<'a, H>>,
 
     // self-reference
     #[allow(dead_code)]
@@ -206,9 +225,7 @@ pub struct MptRo<'a> {
 
     // self-reference
     #[allow(dead_code)]
-    cache: Box<TrieCache<'a, H>>,
-
-    trie: TrieDB<'a, 'a, H>,
+    root: Box<TrieHash<LayoutV1<H>>>,
 }
 
 impl<'a> MptRo<'a> {

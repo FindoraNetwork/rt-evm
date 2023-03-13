@@ -1,5 +1,5 @@
-use crate::TXS_MANAGER;
 use rt_evm_executor::{RTEvmExecutor, RTEvmExecutorAdapter};
+use rt_evm_mempool::Mempool;
 use rt_evm_model::{
     async_trait,
     codec::ProtocolCodec,
@@ -14,13 +14,18 @@ use rt_evm_storage::{FunStorage, MptStore};
 use ruc::*;
 
 pub struct DefaultAPIAdapter {
+    mempool: Mempool,
+    trie: MptStore,
     storage: FunStorage,
-    mpt_store: MptStore,
 }
 
 impl DefaultAPIAdapter {
-    pub fn new(storage: FunStorage, mpt_store: MptStore) -> Self {
-        Self { storage, mpt_store }
+    pub fn new(mempool: Mempool, trie: MptStore, storage: FunStorage) -> Self {
+        Self {
+            mempool,
+            trie,
+            storage,
+        }
     }
 
     pub async fn evm_backend(
@@ -36,7 +41,7 @@ impl DefaultAPIAdapter {
 
         RTEvmExecutorAdapter::from_root(
             state_root,
-            &self.mpt_store,
+            &self.trie,
             &self.storage,
             ExecutorContext::from(proposal),
         )
@@ -46,7 +51,7 @@ impl DefaultAPIAdapter {
 #[async_trait]
 impl APIAdapter for DefaultAPIAdapter {
     async fn insert_signed_tx(&self, signed_tx: SignedTransaction) -> Result<()> {
-        TXS_MANAGER.lock().unwrap().send(signed_tx).c(d!())
+        self.mempool.tx_insert(signed_tx).c(d!())
     }
 
     async fn get_block_by_number(&self, height: Option<u64>) -> Result<Option<Block>> {
@@ -113,9 +118,8 @@ impl APIAdapter for DefaultAPIAdapter {
         }
     }
 
-    async fn get_pending_tx_count(&self, _address: H160) -> Result<U256> {
-        // fixme
-        Ok(0.into())
+    async fn get_pending_tx_count(&self, address: H160) -> Result<U256> {
+        Ok(self.mempool.tx_pending_cnt(Some(address)).into())
     }
 
     async fn evm_call(
@@ -135,7 +139,7 @@ impl APIAdapter for DefaultAPIAdapter {
 
         let backend = RTEvmExecutorAdapter::from_root(
             state_root,
-            &self.mpt_store,
+            &self.trie,
             &self.storage,
             exec_ctx,
         )?;
@@ -156,25 +160,25 @@ impl APIAdapter for DefaultAPIAdapter {
         position: U256,
         state_root: Hash,
     ) -> Result<Vec<u8>> {
-        let state_mpt_tree = self
-            .mpt_store
-            .mpt_restore(&RTEvmExecutorAdapter::WORLD_STATE_KEY, state_root)
+        let state_trie_tree = self
+            .trie
+            .trie_restore(&RTEvmExecutorAdapter::WORLD_STATE_KEY, state_root)
             .c(d!())?;
 
-        let raw_account = state_mpt_tree
+        let raw_account = state_trie_tree
             .get(address.as_bytes())
             .c(d!("Can't find this address"))?
             .c(d!("Can't find this address"))?;
 
         let account = Account::decode(raw_account).unwrap();
 
-        let storage_mpt_tree = self
-            .mpt_store
-            .mpt_restore(address.as_bytes(), account.storage_root)
+        let storage_trie_tree = self
+            .trie
+            .trie_restore(address.as_bytes(), account.storage_root)
             .c(d!())?;
 
         let hash: Hash = BigEndianHash::from_uint(&position);
-        storage_mpt_tree
+        storage_trie_tree
             .get(hash.as_bytes())
             .c(d!("Can't find this position"))?
             .c(d!("Can't find this position"))

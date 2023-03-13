@@ -21,7 +21,7 @@ type GlobalState<'a> = WorldStateMpt<'a>;
 
 pub struct RTEvmExecutorAdapter<'a> {
     state: GlobalState<'a>,
-    mpt_store: &'a MptStore,
+    trie: &'a MptStore,
     storage: &'a FunStorage,
     exec_ctx: ExecutorContext,
 }
@@ -174,8 +174,8 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
                     if storage_root == RLP_NULL {
                         Ok(H256::default())
                     } else {
-                        self.mpt_store
-                            .mpt_restore(address.as_bytes(), storage_root)
+                        self.trie
+                            .trie_restore(address.as_bytes(), storage_root)
                             .map(|trie| match trie.get(index.as_bytes()) {
                                 Ok(Some(res)) => H256::from_slice(res.as_ref()),
                                 _ => H256::default(),
@@ -189,7 +189,7 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
     }
 
     fn original_storage(&self, address: H160, index: H256) -> Option<H256> {
-        // Fixme
+        // fixme
         Some(self.storage(address, index))
     }
 }
@@ -230,14 +230,14 @@ impl<'a> RTEvmExecutorAdapter<'a> {
     pub const WORLD_STATE_KEY: [u8; 1] = [0];
 
     pub fn new(
-        mpt_store: &'a MptStore,
+        trie: &'a MptStore,
         storage: &'a FunStorage,
         exec_ctx: ExecutorContext,
     ) -> Result<Self> {
-        let state = mpt_store.mpt_create(&Self::WORLD_STATE_KEY).c(d!())?;
+        let state = trie.trie_create(&Self::WORLD_STATE_KEY).c(d!())?;
         Ok(RTEvmExecutorAdapter {
             state,
-            mpt_store,
+            trie,
             storage,
             exec_ctx,
         })
@@ -245,17 +245,17 @@ impl<'a> RTEvmExecutorAdapter<'a> {
 
     pub fn from_root(
         state_root: MerkleRoot,
-        mpt_store: &'a MptStore,
+        trie: &'a MptStore,
         storage: &'a FunStorage,
         exec_ctx: ExecutorContext,
     ) -> Result<Self> {
-        let state = mpt_store
-            .mpt_restore(&Self::WORLD_STATE_KEY, state_root)
+        let state = trie
+            .trie_restore(&Self::WORLD_STATE_KEY, state_root)
             .c(d!())?;
 
         Ok(RTEvmExecutorAdapter {
             state,
-            mpt_store,
+            trie,
             storage,
             exec_ctx,
         })
@@ -286,11 +286,11 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         };
 
         let mut storage_trie = if storage_root == RLP_NULL {
-            pnk!(self.mpt_store.mpt_create(address.as_bytes()))
+            pnk!(self.trie.trie_create(address.as_bytes()))
         } else {
             pnk!(
-                self.mpt_store
-                    .mpt_restore(address.as_bytes(), old_account.storage_root)
+                self.trie
+                    .trie_restore(address.as_bytes(), old_account.storage_root)
             )
         };
 

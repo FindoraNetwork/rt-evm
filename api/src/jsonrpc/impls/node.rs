@@ -37,7 +37,7 @@ impl RTEvmNodeRpcServer for NodeRpcImpl {
 
     // https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_syncing
     fn syncing(&self) -> RpcResult<Web3SyncStatus> {
-        let s = *SYNC_STATUS.read().unwrap();
+        let s = *SYNC_STATUS.read();
         let ret = if s.current_block == s.highest_block {
             Web3SyncStatus::False
         } else {

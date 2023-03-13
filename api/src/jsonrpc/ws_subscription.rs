@@ -145,7 +145,7 @@ where
 
         // Send all sync status
         if !self.sync_hubs.is_empty() {
-            let web3_sync_state = *SYNC_STATUS.read().unwrap();
+            let web3_sync_state = *SYNC_STATUS.read();
             for hub in self.sync_hubs.iter_mut() {
                 // unbound sender can ignore it's return
                 let _ignore = hub.sink.send(&web3_sync_state);

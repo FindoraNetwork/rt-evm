@@ -37,7 +37,7 @@ impl MptStore {
         }
     }
 
-    pub fn mpt_create<'a>(&self, backend_key: &'a [u8]) -> Result<MptOnce<'a>> {
+    pub fn trie_create<'a>(&self, backend_key: &'a [u8]) -> Result<MptOnce<'a>> {
         let backend = MptStore::new_backend();
         self.put_backend(backend_key, &backend).c(d!())?;
 
@@ -50,7 +50,7 @@ impl MptStore {
         }
     }
 
-    pub fn mpt_restore<'a>(
+    pub fn trie_restore<'a>(
         &self,
         backend_key: &'a [u8],
         root: MerkleRoot,
@@ -66,14 +66,14 @@ impl MptStore {
         }
     }
 
-    pub fn mpt_restore_or_create<'a>(
+    pub fn trie_restore_or_create<'a>(
         &self,
         backend_key: &'a [u8],
         root: MerkleRoot,
     ) -> Result<MptOnce<'a>> {
-        self.mpt_restore(backend_key, root)
+        self.trie_restore(backend_key, root)
             .c(d!())
-            .or_else(|_| self.mpt_create(backend_key).c(d!()))
+            .or_else(|_| self.trie_create(backend_key).c(d!()))
     }
 
     fn get_backend(&self, backend_key: &[u8]) -> Option<TrieBackend> {

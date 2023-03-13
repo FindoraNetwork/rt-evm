@@ -15,6 +15,7 @@ serde_json = "1.0"
 
 rt-evm-model = { path = "../model" }
 rt-evm-executor = { path = "../executor" }
+rt-evm-mempool = { path = "../mempool" }
 rt-evm-storage = { path = "../storage" }
 
 [dev-dependencies]

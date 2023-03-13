@@ -14,3 +14,6 @@ test:
 update:
 	rustup update stable
 	cargo update
+
+clean:
+	cargo clean

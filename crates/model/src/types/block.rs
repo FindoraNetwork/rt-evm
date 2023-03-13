@@ -43,6 +43,23 @@ impl From<&Block> for Proposal {
     }
 }
 
+impl From<&Header> for Proposal {
+    fn from(h: &Header) -> Self {
+        Proposal {
+            prev_hash: h.prev_hash,
+            proposer: h.proposer,
+            transactions_root: h.transactions_root,
+            timestamp: h.timestamp,
+            number: h.number,
+            gas_limit: h.gas_limit,
+            extra_data: h.extra_data.clone(),
+            base_fee_per_gas: h.base_fee_per_gas,
+            chain_id: h.chain_id,
+            tx_hashes: vec![],
+        }
+    }
+}
+
 impl From<Header> for Proposal {
     fn from(h: Header) -> Self {
         Proposal {
@@ -155,6 +172,10 @@ pub struct Header {
 impl Header {
     pub fn size(&self) -> usize {
         self.encode().unwrap().len()
+    }
+
+    pub fn hash(&self) -> Hash {
+        Proposal::from(self).hash()
     }
 }
 

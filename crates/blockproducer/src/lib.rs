@@ -17,7 +17,9 @@ pub struct BlockProducer<'a> {
     pub proposer: H160,
 
     // the state hash of the previous block
-    pub prev_hash: MerkleRoot,
+    pub prev_block_hash: MerkleRoot,
+
+    pub prev_state_root: MerkleRoot,
 
     // the height of the proposing block
     pub block_number: u64,
@@ -38,7 +40,7 @@ impl<'a> BlockProducer<'a> {
 
         let executor_ctx = ExecutorContext::from(&proposal);
         let mut evm_exec_backend = EvmExecBackend::from_root(
-            self.prev_hash,
+            self.prev_state_root,
             self.trie,
             self.storage,
             executor_ctx,
@@ -70,7 +72,7 @@ impl<'a> BlockProducer<'a> {
         let transactions_root = trie_root(tx_hashes_indexed);
 
         Proposal {
-            prev_hash: self.prev_hash,
+            prev_hash: self.prev_block_hash,
             proposer: self.proposer,
             transactions_root,
             timestamp: self.block_timestamp,

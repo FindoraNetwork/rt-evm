@@ -99,11 +99,12 @@ impl Config {
             let latest_header = storage.get_latest_block_header().c(d!())?;
 
             let blockproducer = BlockProducer {
-                proposer: H160::default(), // fake value
-                prev_hash: latest_header.state_root,
+                proposer: H160::random(), // fake value
+                prev_block_hash: latest_header.hash(),
+                prev_state_root: latest_header.state_root,
                 block_number: latest_header.number + 1,
                 block_timestamp: ts!(),
-                chain_id: 0, // fake value
+                chain_id: 9527, // fake value
                 mempool: &mempool,
                 trie: &trie,
                 storage: &storage,

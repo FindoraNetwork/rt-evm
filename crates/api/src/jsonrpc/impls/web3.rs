@@ -21,7 +21,7 @@ use rt_evm_model::{
 use ruc::*;
 use std::sync::Arc;
 
-pub(crate) const MAX_LOG_NUM: usize = 10000;
+const MAX_LOG_NUM: usize = 10000;
 
 pub struct Web3RpcImpl<Adapter> {
     adapter: Arc<Adapter>,
@@ -29,10 +29,10 @@ pub struct Web3RpcImpl<Adapter> {
 }
 
 impl<Adapter: APIAdapter> Web3RpcImpl<Adapter> {
-    pub fn new(adapter: Arc<Adapter>, gas_cap: u64) -> Self {
+    pub fn new(adapter: Arc<Adapter>, gas_cap: Option<u64>) -> Self {
         Self {
             adapter,
-            gas_cap: gas_cap.into(),
+            gas_cap: gas_cap.unwrap_or(MAX_BLOCK_GAS_LIMIT / 2).into(),
         }
     }
 

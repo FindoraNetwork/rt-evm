@@ -15,9 +15,6 @@ use std::{sync::Arc, time::Duration};
 
 #[derive(Default, Clone)]
 pub struct Config {
-    // block gas limit
-    gas_cap: u64,
-
     client_version: String,
 
     // http rpc server
@@ -66,7 +63,7 @@ impl Config {
             pnk!(
                 run_jsonrpc_server(
                     api,
-                    cfg.gas_cap,
+                    None,
                     &cfg.client_version,
                     cfg.http_listening_address.as_deref(),
                     cfg.ws_listening_address.as_deref(),

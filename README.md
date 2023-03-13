@@ -4,15 +4,15 @@
 
 # rt-evm
 
-A simple development framework for creating EVM-compatible chains.
+A compact development framework for creating EVM-compatible runtimes/chains.
 
 ### Projects referenced
 
-- [**vsdb**](https://github.com/rust-util-collections/vsdb), storage
 - [**trie**](https://github.com/paritytech/trie), MPT design
-- [**aptos**](https://github.com/aptos-labs/aptos-core), consensus design
-- [**tentacle**](https://github.com/nervosnetwork/tentacle), P2P network implementations
-- [**axon**](https://github.com/axonweb3/axon), EVM executor design, web3 RPC design
+- [**vsdb**](https://github.com/rust-util-collections/vsdb), storage
+- todo! [**aptos**](https://github.com/aptos-labs/aptos-core), consensus protocol
+- todo! [**tentacle**](https://github.com/nervosnetwork/tentacle), P2P network implementations
+- [**axon**](https://github.com/axonweb3/axon), designs of the EVM executor and web3 APIs
 
 ### Gratitude
 

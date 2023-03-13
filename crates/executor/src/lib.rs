@@ -263,11 +263,14 @@ impl RTEvmExecutor {
     }
 }
 
-fn trie_root<I, A, B>(input: I) -> MerkleRoot
+pub fn trie_root<A, B>(input: Vec<(A, B)>) -> MerkleRoot
 where
-    I: IntoIterator<Item = (A, B)>,
     A: AsRef<[u8]> + Ord,
     B: AsRef<[u8]>,
 {
-    triehash::trie_root::<blake3_hasher::Blake3Hasher, _, _, _>(input).into()
+    if input.is_empty() {
+        RLP_NULL
+    } else {
+        triehash::trie_root::<blake3_hasher::Blake3Hasher, _, _, _>(input).into()
+    }
 }

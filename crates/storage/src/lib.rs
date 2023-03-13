@@ -1,6 +1,7 @@
 pub mod trie_db;
 
 pub use trie_db::MptStore;
+pub use FunStorage as Storage;
 
 use moka::sync::Cache as Lru;
 use parking_lot::RwLock;
@@ -9,37 +10,37 @@ use rt_evm_model::{
     types::{Block, BlockNumber, Hash, Header, Receipt, SignedTransaction, H256},
 };
 use ruc::*;
+use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
 use vsdb::{MapxOrd, MapxRaw};
 
 const BATCH_LIMIT: usize = 1000;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct FunStorage {
     db: DB,
+    #[serde(skip)]
     cache: Cache,
 }
 
-impl FunStorage {
-    const CACHE_SIZE: u64 = 100_0000;
+const DEFAULT_CACHE_SIZE: u64 = 100_0000;
 
-    pub fn new(cache_size: Option<u64>) -> Self {
+impl FunStorage {
+    pub fn new(cache_size: u64) -> Self {
         Self {
             db: DB::new(),
-            cache: Cache::new(cache_size.unwrap_or(Self::CACHE_SIZE)),
-        }
-    }
-
-    // totally safe in the context of EVM
-    pub fn shadow(&self) -> Self {
-        Self {
-            db: self.db.shadow(),
-            cache: self.cache.clone(), // cheap, all is `Arc::clone`
+            cache: Cache::new(cache_size),
         }
     }
 }
 
-#[derive(Debug)]
+impl Default for FunStorage {
+    fn default() -> Self {
+        Self::new(DEFAULT_CACHE_SIZE)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct DB {
     blocks: MapxOrd<u64, Block>,
     block_numbers: MapxOrd<Hash, u64>,
@@ -126,8 +127,14 @@ impl Cache {
     }
 }
 
+impl Default for Cache {
+    fn default() -> Self {
+        Self::new(DEFAULT_CACHE_SIZE)
+    }
+}
+
 impl BlockStorage for FunStorage {
-    fn insert_block(&self, block: Block) -> Result<()> {
+    fn set_block(&self, block: Block) -> Result<()> {
         let mut db = self.db.shadow();
 
         let bh = block.hash();
@@ -140,9 +147,9 @@ impl BlockStorage for FunStorage {
 
         self.cache.block_numbers.insert(bh, height);
         self.cache.headers.insert(height, header);
-        self.cache.blocks.insert(height, block);
+        self.cache.blocks.insert(height, block.clone());
 
-        Ok(())
+        self.set_latest_block(block).c(d!())
     }
 
     fn get_block(&self, height: u64) -> Result<Option<Block>> {
@@ -161,12 +168,14 @@ impl BlockStorage for FunStorage {
             .or_else(|| self.db.headers.get(&height)))
     }
 
-    fn set_block(&self, block: Block) -> Result<()> {
-        self.insert_block(block)
-    }
-
     fn get_latest_block(&self) -> Result<Block> {
-        Ok(self.cache.latest_block.read().clone().unwrap_or_default())
+        Ok(self
+            .cache
+            .latest_block
+            .read()
+            .clone()
+            .or_else(|| self.db.blocks.last().map(|(_, b)| b))
+            .unwrap_or_default())
     }
 
     fn set_latest_block(&self, block: Block) -> Result<()> {
@@ -175,13 +184,7 @@ impl BlockStorage for FunStorage {
     }
 
     fn get_latest_block_header(&self) -> Result<Header> {
-        Ok(self
-            .cache
-            .latest_block
-            .read()
-            .as_ref()
-            .map(|b| b.header.clone())
-            .unwrap_or_default())
+        self.get_latest_block().c(d!()).map(|b| b.header)
     }
 }
 

@@ -159,7 +159,7 @@ impl TinyMempool {
     }
 
     // remove transactions after they have been confirmed ?
-    pub fn tx_remove(&self, tx_hashes: &[Hash]) {
+    pub fn tx_cleanup(&self, tx_hashes: &[Hash]) {
         tx_hashes.iter().for_each(|h| {
             // the registered listener will decrease the pending cnter automatically
             self.txs.invalidate(h);

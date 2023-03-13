@@ -6,6 +6,10 @@
 
 A compact development framework for creating EVM-compatible runtimes/chains.
 
+### Usage
+
+Check examples under the [**examples**](./examples) directory.
+
 ### Projects referenced
 
 - [**trie**](https://github.com/paritytech/trie), MPT design

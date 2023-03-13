@@ -6,7 +6,6 @@ pub mod types;
 pub use {
     async_trait::async_trait,
     derive_more::{Constructor, Display, From},
-    tokio,
 };
 
 use std::error::Error;

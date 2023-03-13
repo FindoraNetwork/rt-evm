@@ -261,7 +261,7 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         })
     }
 
-    fn apply<I: IntoIterator<Item = (H256, H256)>>(
+    pub fn apply<I: IntoIterator<Item = (H256, H256)>>(
         &mut self,
         address: H160,
         basic: Basic,

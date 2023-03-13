@@ -12,15 +12,20 @@ use rt_evm_model::{
 };
 use rt_evm_storage::{FunStorage, MptStore};
 use ruc::*;
+use std::sync::Arc;
 
 pub struct DefaultAPIAdapter {
-    mempool: Mempool,
-    trie: MptStore,
-    storage: FunStorage,
+    mempool: Arc<Mempool>,
+    trie: Arc<MptStore>,
+    storage: Arc<FunStorage>,
 }
 
 impl DefaultAPIAdapter {
-    pub fn new(mempool: Mempool, trie: MptStore, storage: FunStorage) -> Self {
+    pub fn new(
+        mempool: Arc<Mempool>,
+        trie: Arc<MptStore>,
+        storage: Arc<FunStorage>,
+    ) -> Self {
         Self {
             mempool,
             trie,
@@ -43,7 +48,7 @@ impl DefaultAPIAdapter {
             state_root,
             &self.trie,
             &self.storage,
-            ExecutorContext::from(proposal),
+            ExecutorContext::from(&proposal),
         )
     }
 }
@@ -133,7 +138,7 @@ impl APIAdapter for DefaultAPIAdapter {
         state_root: Hash,
         mock_header: Proposal,
     ) -> Result<TxResp> {
-        let mut exec_ctx = ExecutorContext::from(mock_header);
+        let mut exec_ctx = ExecutorContext::from(&mock_header);
         exec_ctx.origin = from.unwrap_or_default();
         exec_ctx.gas_price = gas_price.unwrap_or_else(U256::one);
 

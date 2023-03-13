@@ -2,13 +2,11 @@ use crate::types::{Block, Hash, Header, Receipt, SignedTransaction, H256};
 use ruc::*;
 
 pub trait BlockStorage: Send + Sync {
-    fn insert_block(&self, block: Block) -> Result<()>;
+    fn set_block(&self, block: Block) -> Result<()>;
 
     fn get_block(&self, height: u64) -> Result<Option<Block>>;
 
     fn get_block_header(&self, height: u64) -> Result<Option<Header>>;
-
-    fn set_block(&self, block: Block) -> Result<()>;
 
     fn get_latest_block(&self) -> Result<Block>;
 

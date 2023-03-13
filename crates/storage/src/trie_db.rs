@@ -2,6 +2,7 @@ use backend::TrieBackend;
 use blake3_hasher::Blake3Hasher as H;
 use rt_evm_model::types::MerkleRoot;
 use ruc::*;
+use serde::{Deserialize, Serialize};
 use sp_trie::{
     cache::{LocalTrieCache, TrieCache},
     trie_types::{
@@ -11,7 +12,7 @@ use sp_trie::{
 };
 use vsdb::basic::mapx_ord_rawkey::MapxOrdRawKey;
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct MptStore {
     // backend key ==> backend instance
     //
@@ -25,15 +26,6 @@ impl MptStore {
     pub fn new() -> Self {
         Self {
             meta: MapxOrdRawKey::new(),
-        }
-    }
-
-    // is safe in the context of EVM
-    pub fn shadow(&self) -> Self {
-        unsafe {
-            Self {
-                meta: self.meta.shadow(),
-            }
         }
     }
 

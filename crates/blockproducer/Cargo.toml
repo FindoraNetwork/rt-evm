@@ -1,0 +1,16 @@
+[package]
+name = "rt-evm-blockproducer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ruc = "4.0"
+
+rt-evm-mempool = { path = "../mempool" }
+rt-evm-executor = { path = "../executor" }
+rt-evm-storage = { path = "../storage" }
+rt-evm-model = { path = "../model" }
+
+[dev-dependencies]
+
+[features]

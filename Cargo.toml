@@ -4,6 +4,7 @@ members = [
     "crates/mempool",
     "crates/executor",
     "crates/storage",
+    "crates/blockproducer",
     "crates/model",
     "crates/utils/crypto",
 ]
@@ -15,12 +16,19 @@ edition = "2021"
 
 [dependencies]
 ruc = "4.0.1"
+vsdb = "0.50.2"
+once_cell = "1.17.1"
+bcs = "0.1.5"
 
 rt-evm-api = { path = "crates/api" }
 rt-evm-mempool = { path = "crates/mempool" }
 rt-evm-executor = { path = "crates/executor" }
 rt-evm-storage = { path = "crates/storage" }
+rt-evm-blockproducer = { path = "crates/blockproducer" }
 rt-evm-model = { path = "crates/model" }
+
+[dev-dependencies]
+tokio = "1.25"
 
 [[example]]
 name = "demo"

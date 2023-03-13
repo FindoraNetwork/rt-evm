@@ -88,7 +88,7 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn new(proposal: Proposal, exec_resp: ExecResp) -> Self {
+    pub fn new(proposal: Proposal, exec_resp: &ExecResp) -> Self {
         let logs = exec_resp
             .txs_resp
             .iter()

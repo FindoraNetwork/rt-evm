@@ -15,13 +15,13 @@ use jsonrpsee::{
 use serde::{Deserialize, Serialize};
 
 use rt_evm_model::{
-    tokio::{
-        self, select,
-        sync::mpsc::{channel, Receiver, Sender},
-        time::interval,
-    },
     traits::APIAdapter,
     types::{BigEndianHash, Hash, Hex, H160, H256, U256},
+};
+use tokio::{
+    self, select,
+    sync::mpsc::{channel, Receiver, Sender},
+    time::interval,
 };
 
 use crate::{

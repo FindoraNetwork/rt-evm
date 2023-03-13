@@ -60,19 +60,19 @@ pub struct ExecutorContext {
     pub logs: Vec<Log>,
 }
 
-impl From<Proposal> for ExecutorContext {
-    fn from(h: Proposal) -> Self {
+impl From<&Proposal> for ExecutorContext {
+    fn from(p: &Proposal) -> Self {
         ExecutorContext {
-            block_number: h.number.into(),
-            block_hash: Hasher::digest(h.encode().unwrap()),
-            block_coinbase: h.proposer,
-            block_timestamp: h.timestamp.into(),
-            chain_id: h.chain_id.into(),
+            block_number: p.number.into(),
+            block_hash: Hasher::digest(p.encode().unwrap()),
+            block_coinbase: p.proposer,
+            block_timestamp: p.timestamp.into(),
+            chain_id: p.chain_id.into(),
             difficulty: U256::one(),
-            origin: h.proposer,
+            origin: p.proposer,
             gas_price: U256::one(),
-            block_gas_limit: h.gas_limit,
-            block_base_fee_per_gas: h.base_fee_per_gas,
+            block_gas_limit: p.gas_limit,
+            block_base_fee_per_gas: p.base_fee_per_gas,
             logs: Vec::new(),
         }
     }

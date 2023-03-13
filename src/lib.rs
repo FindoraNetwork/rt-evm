@@ -52,9 +52,19 @@ impl EvmRuntime {
             let mut exector_adapter =
                 RTEvmExecutorAdapter::new(&r.trie, &r.storage, Default::default())
                     .c(d!())?;
-            token_distributions.iter().for_each(|td| {
-                exector_adapter.apply(td.address, td.basic(), None, vec![], true);
-            });
+            token_distributions
+                .iter()
+                .fold(map! {}, |mut acc, td| {
+                    let hdr = acc.entry(td.address).or_insert(*td);
+                    if td.amount != hdr.amount {
+                        hdr.amount = hdr.amount.saturating_add(td.amount);
+                    }
+                    acc
+                })
+                .into_values()
+                .for_each(|td| {
+                    exector_adapter.apply(td.address, td.basic(), None, vec![], true);
+                });
         }
 
         // Only need to write once time !
@@ -101,7 +111,7 @@ struct MetaPath {
     storage: PathBuf,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct TokenDistributon {
     address: H160,
     amount: U256,

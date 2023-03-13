@@ -6,7 +6,7 @@ use rlp::{Decodable, DecoderError, Encodable, Prototype, Rlp, RlpStream};
 
 impl Encodable for Proposal {
     fn rlp_append(&self, s: &mut RlpStream) {
-        s.begin_list(10)
+        s.begin_list(6)
             .append(&self.prev_hash)
             .append(&self.proposer)
             .append(&self.transactions_root)
@@ -29,7 +29,7 @@ impl Decodable for Proposal {
                 extra_data: Default::default(),
                 base_fee_per_gas: BASE_FEE_PER_GAS.into(),
                 chain_id: **CHAIN_ID.load(),
-                tx_hashes: r.list_at(9)?,
+                tx_hashes: r.list_at(5)?,
             }),
             _ => Err(DecoderError::RlpInconsistentLengthAndData),
         }

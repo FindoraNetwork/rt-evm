@@ -13,6 +13,7 @@ use rt_evm::{
 use ruc::*;
 use std::{sync::Arc, time::Duration};
 
+// TODO: other fields ...
 #[derive(Default, Clone)]
 pub struct Config {
     client_version: String,
@@ -26,7 +27,7 @@ pub struct Config {
     // storage path for the vsdb crate
     vsdb_base_dir: Option<String>,
 
-    genesis_token_distributions: Vec<TokenDistributon>, // TODO: other fields ...
+    genesis_token_distributions: Vec<TokenDistributon>,
 }
 
 impl Config {
@@ -119,15 +120,22 @@ impl Config {
             storage
                 .insert_receipts(block.header.number, receipts)
                 .c(d!())?;
-            storage.set_block(block).c(d!())?;
+            storage.set_block(dbg!(block)).c(d!())?;
         }
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let list = (0u64..1000)
+        .map(|n| TokenDistributon::new(H160::from_low_u64_ne(n), n.into()))
+        .collect();
+
     // Set a real config for your production environment !
-    let cfg = Config::default();
+    let cfg = Config {
+        genesis_token_distributions: list,
+        ..Default::default()
+    };
 
     cfg.set_base_dir().c(d!())?;
 

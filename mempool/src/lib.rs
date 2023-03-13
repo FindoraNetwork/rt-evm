@@ -121,7 +121,7 @@ impl TinyMempool {
     }
 
     // broadcast transactions to other nodes ?
-    pub fn tx_broadcast(&self, mut cap: u64) -> Vec<SignedTx> {
+    pub fn tx_take_broadcast(&self, mut cap: u64) -> Vec<SignedTx> {
         let mut ret = vec![];
 
         while cap > 0 {
@@ -139,7 +139,7 @@ impl TinyMempool {
     }
 
     // package some transactions for proposing a new block ?
-    pub fn tx_package(&self, mut cap: u64) -> Vec<SignedTx> {
+    pub fn tx_take_propose(&self, mut cap: u64) -> Vec<SignedTx> {
         let mut ret = vec![];
 
         while cap > 0 {

@@ -6,11 +6,13 @@
 
 A simple development framework for creating EVM-compatible chains.
 
-### Project references
+### Projects referenced
 
-- [**axon**](https://github.com/axonweb3/axon), EVM executor and web3 API
-- [**sp-trie**](https://github.com/paritytech/substrate/tree/master/primitives/trie), MPT structures
-- [**vsdb**](https://github.com/rust-util-collections/vsdb), low-level storage backend
+- [**vsdb**](https://github.com/rust-util-collections/vsdb), storage
+- [**trie**](https://github.com/paritytech/trie), MPT design
+- [**aptos**](https://github.com/aptos-labs/aptos-core), consensus design
+- [**tentacle**](https://github.com/nervosnetwork/tentacle), P2P network implementations
+- [**axon**](https://github.com/axonweb3/axon), EVM executor design, web3 RPC design
 
 ### Gratitude
 

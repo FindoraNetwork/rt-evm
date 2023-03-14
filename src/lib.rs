@@ -18,7 +18,7 @@ use model::{
 };
 use once_cell::sync::Lazy;
 use ruc::*;
-use std::{fs, mem::size_of, path::PathBuf, sync::Arc};
+use std::{fs, io::ErrorKind, mem::size_of, path::PathBuf, sync::Arc};
 use storage::{MptStore, Storage};
 
 static META_PATH: Lazy<MetaPath> = Lazy::new(|| {
@@ -26,9 +26,9 @@ static META_PATH: Lazy<MetaPath> = Lazy::new(|| {
     let mut storage = trie.clone();
     let mut chain_id = trie.clone();
 
-    trie.push("__evm_runtime_trie.meta");
-    storage.push("__evm_runtime_storage.meta");
-    chain_id.push("__evm_runtime_chain_id.meta");
+    chain_id.push("EVM_RUNTIME_chain_id.meta");
+    trie.push("EVM_RUNTIME_trie.meta");
+    storage.push("EVM_RUNTIME_storage.meta");
 
     MetaPath {
         chain_id,
@@ -87,7 +87,7 @@ impl EvmRuntime {
         r.storage.set_block(Block::genesis(chain_id)).c(d!())?;
 
         // Only need to write once time !
-        fs::write(META_PATH.trie.as_path(), u64::to_be_bytes(r.chain_id)).c(d!())?;
+        fs::write(META_PATH.chain_id.as_path(), u64::to_be_bytes(r.chain_id)).c(d!())?;
 
         // Only need to write once time !
         bcs::to_bytes(&*r.trie)
@@ -102,32 +102,44 @@ impl EvmRuntime {
         Ok(r)
     }
 
-    pub fn restore() -> Result<Self> {
-        let chain_id = fs::read(META_PATH.chain_id.as_path())
-            .c(d!())
-            .and_then(|bytes| {
-                <[u8; size_of::<u64>()]>::try_from(bytes)
+    pub fn restore() -> Result<Option<Self>> {
+        let chain_id = fs::read(META_PATH.chain_id.as_path());
+        let trie = fs::read(META_PATH.trie.as_path());
+        let storage = fs::read(META_PATH.storage.as_path());
+
+        match (chain_id, trie, storage) {
+            (Ok(chain_id), Ok(trie), Ok(storage)) => {
+                let chain_id = <[u8; size_of::<u64>()]>::try_from(chain_id)
                     .map_err(|_| eg!("invalid length"))
-            })
-            .map(u64::from_be_bytes)?;
-        let trie = fs::read(META_PATH.trie.as_path())
-            .c(d!())
-            .and_then(|m| bcs::from_bytes::<MptStore>(&m).c(d!()))?;
-
-        let storage = fs::read(META_PATH.storage.as_path())
-            .c(d!())
-            .and_then(|m| bcs::from_bytes::<Storage>(&m).c(d!()))?;
-
-        Ok(Self::new(chain_id, trie, storage))
+                    .map(u64::from_be_bytes)?;
+                let trie = bcs::from_bytes::<MptStore>(&trie).c(d!())?;
+                let storage = bcs::from_bytes::<Storage>(&storage).c(d!())?;
+                Ok(Some(Self::new(chain_id, trie, storage)))
+            }
+            (Err(a), Err(b), Err(c)) => match (a.kind(), b.kind(), c.kind()) {
+                (ErrorKind::NotFound, ErrorKind::NotFound, ErrorKind::NotFound) => {
+                    Ok(None)
+                }
+                _ => Err(eg!("bad meta data: {}, {}, {}", a, b, c)),
+            },
+            (a, b, c) => {
+                info_omit!(a);
+                info_omit!(b);
+                info_omit!(c);
+                Err(eg!("bad meta data"))
+            }
+        }
     }
 
     pub fn restore_or_create(
         chain_id: u64,
         token_distributions: &[TokenDistributon],
     ) -> Result<Self> {
-        Self::restore()
-            .c(d!())
-            .or_else(|_| Self::create(chain_id, token_distributions).c(d!()))
+        if let Some(rt) = Self::restore().c(d!())? {
+            Ok(rt)
+        } else {
+            Self::create(chain_id, token_distributions).c(d!())
+        }
     }
 
     pub fn chain_id(&self) -> u64 {

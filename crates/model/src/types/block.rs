@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::codec::ProtocolCodec;
 use crate::types::{
     Bloom, BloomInput, Bytes, ExecResp, Hash, Hasher, MerkleRoot, SignedTransaction,
-    H160, H64, U256,
+    H160, H64, RLP_NULL, U256,
 };
 
 pub type BlockNumber = u64;
@@ -130,6 +130,32 @@ impl Block {
 
     pub fn hash(&self) -> Hash {
         Proposal::from(self).hash()
+    }
+
+    pub fn genesis(chain_id: u64) -> Self {
+        let header = Header {
+            prev_hash: Default::default(),
+            proposer: Default::default(),
+            state_root: Default::default(),
+            transactions_root: RLP_NULL,
+            receipts_root: RLP_NULL,
+            log_bloom: Bloom::default(),
+            difficulty: U256::one(),
+            timestamp: ruc::ts!(),
+            number: 0,
+            gas_used: 0.into(),
+            gas_limit: MAX_BLOCK_GAS_LIMIT.into(),
+            extra_data: Default::default(),
+            mixed_hash: None,
+            nonce: Default::default(),
+            base_fee_per_gas: BASE_FEE_PER_GAS.into(),
+            chain_id,
+        };
+
+        Block {
+            header,
+            tx_hashes: vec![],
+        }
     }
 }
 

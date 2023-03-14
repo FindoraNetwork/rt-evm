@@ -169,13 +169,12 @@ impl BlockStorage for FunStorage {
     }
 
     fn get_latest_block(&self) -> Result<Block> {
-        Ok(self
-            .cache
+        self.cache
             .latest_block
             .read()
             .clone()
             .or_else(|| self.db.blocks.last().map(|(_, b)| b))
-            .unwrap_or_default())
+            .ok_or_else(|| eg!("no blocks found"))
     }
 
     fn set_latest_block(&self, block: Block) -> Result<()> {

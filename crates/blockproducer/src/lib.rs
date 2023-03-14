@@ -4,7 +4,7 @@ use rt_evm_executor::{
 };
 use rt_evm_mempool::Mempool;
 use rt_evm_model::{
-    traits::Executor as _,
+    traits::{BlockStorage as _, Executor as _, TxStorage as _},
     types::{
         Block, ExecResp, ExecutorContext, Hash, MerkleRoot, Proposal, Receipt,
         SignedTransaction, BASE_FEE_PER_GAS, H160, MAX_BLOCK_GAS_LIMIT, U256,
@@ -12,8 +12,9 @@ use rt_evm_model::{
 };
 use rt_evm_storage::{MptStore, Storage};
 use ruc::*;
+use std::sync::Arc;
 
-pub struct BlockProducer<'a> {
+pub struct BlockProducer {
     pub proposer: H160,
 
     // the state hash of the previous block
@@ -29,20 +30,34 @@ pub struct BlockProducer<'a> {
 
     pub chain_id: u64,
 
-    pub mempool: &'a Mempool,
-    pub trie: &'a MptStore,
-    pub storage: &'a Storage,
+    pub mempool: Arc<Mempool>,
+    pub trie: Arc<MptStore>,
+    pub storage: Arc<Storage>,
 }
 
-impl<'a> BlockProducer<'a> {
-    pub fn new_block(&self, txs: &[SignedTransaction]) -> Result<(Block, Vec<Receipt>)> {
-        let proposal = self.new_proposal(txs);
+impl BlockProducer {
+    pub fn generate_block_and_persist(&self, txs: Vec<SignedTransaction>) -> Result<()> {
+        let (block, receipts) = self.generate_block(&txs).c(d!())?;
+        self.storage
+            .insert_transactions(block.header.number, txs)
+            .c(d!())?;
+        self.storage
+            .insert_receipts(block.header.number, receipts)
+            .c(d!())?;
+        self.storage.set_block(block).c(d!())
+    }
+
+    pub fn generate_block(
+        &self,
+        txs: &[SignedTransaction],
+    ) -> Result<(Block, Vec<Receipt>)> {
+        let proposal = self.generate_proposal(txs);
 
         let executor_ctx = ExecutorContext::from(&proposal);
         let mut evm_exec_backend = EvmExecBackend::from_root(
             self.prev_state_root,
-            self.trie,
-            self.storage,
+            &self.trie,
+            &self.storage,
             executor_ctx,
         )
         .c(d!())?;
@@ -62,7 +77,7 @@ impl<'a> BlockProducer<'a> {
         Ok((block, receipts))
     }
 
-    fn new_proposal(&self, txs: &[SignedTransaction]) -> Proposal {
+    fn generate_proposal(&self, txs: &[SignedTransaction]) -> Proposal {
         let tx_hashes_indexed = txs
             .iter()
             .map(|tx| tx.transaction.hash)

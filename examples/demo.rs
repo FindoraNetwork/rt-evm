@@ -3,7 +3,7 @@ use rt_evm::{
     Address, EvmRuntime, TokenDistributon,
 };
 use ruc::*;
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 // TODO: other fields ...
 #[derive(Default, Clone)]
@@ -43,7 +43,6 @@ impl Config {
             &self.genesis_token_distributions,
         )
         .c(d!())?;
-        let rt = Arc::new(rt);
 
         // will NOT block current thread
         rt.spawn_jsonrpc_server(
@@ -55,11 +54,11 @@ impl Config {
         .c(d!())?;
 
         // the inner loop will block current thread !
-        self.start_consensus_engine(rt).await.c(d!())
+        self.start_consensus_engine(&rt).await.c(d!())
     }
 
     // a fake consensus demo
-    async fn start_consensus_engine(&self, evm_rt: Arc<EvmRuntime>) -> Result<()> {
+    async fn start_consensus_engine(&self, evm_rt: &EvmRuntime) -> Result<()> {
         let block_interval = 3; // in seconds
 
         loop {

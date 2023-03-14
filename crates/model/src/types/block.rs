@@ -21,6 +21,7 @@ pub struct Proposal {
     pub number: BlockNumber,
     pub gas_limit: U256,
     pub extra_data: Bytes,
+    pub mixed_hash: Option<Hash>,
     pub base_fee_per_gas: U256,
     pub chain_id: u64,
     pub tx_hashes: Vec<Hash>,
@@ -28,18 +29,7 @@ pub struct Proposal {
 
 impl From<&Block> for Proposal {
     fn from(b: &Block) -> Self {
-        Proposal {
-            prev_hash: b.header.prev_hash,
-            proposer: b.header.proposer,
-            transactions_root: b.header.transactions_root,
-            timestamp: b.header.timestamp,
-            number: b.header.number,
-            gas_limit: b.header.gas_limit,
-            extra_data: b.header.extra_data.clone(),
-            base_fee_per_gas: b.header.base_fee_per_gas,
-            chain_id: b.header.chain_id,
-            tx_hashes: b.tx_hashes.clone(),
-        }
+        Self::from(&b.header)
     }
 }
 
@@ -53,6 +43,7 @@ impl From<&Header> for Proposal {
             number: h.number,
             gas_limit: h.gas_limit,
             extra_data: h.extra_data.clone(),
+            mixed_hash: h.mixed_hash,
             base_fee_per_gas: h.base_fee_per_gas,
             chain_id: h.chain_id,
             tx_hashes: vec![],
@@ -70,6 +61,7 @@ impl From<Header> for Proposal {
             number: h.number,
             gas_limit: h.gas_limit,
             extra_data: h.extra_data,
+            mixed_hash: h.mixed_hash,
             base_fee_per_gas: h.base_fee_per_gas,
             chain_id: h.chain_id,
             tx_hashes: vec![],
@@ -124,6 +116,7 @@ impl Block {
             gas_used: exec_resp.gas_used.into(),
             gas_limit: proposal.gas_limit,
             extra_data: proposal.extra_data,
+            mixed_hash: proposal.mixed_hash,
             nonce: Default::default(),
             base_fee_per_gas: proposal.base_fee_per_gas,
             chain_id: proposal.chain_id,
@@ -164,6 +157,7 @@ pub struct Header {
     pub gas_used: U256,
     pub gas_limit: U256,
     pub extra_data: Bytes,
+    pub mixed_hash: Option<Hash>,
     pub nonce: H64,
     pub base_fee_per_gas: U256,
     pub chain_id: u64,

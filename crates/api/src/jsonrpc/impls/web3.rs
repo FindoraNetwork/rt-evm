@@ -758,6 +758,7 @@ fn mock_header_by_call_req(latest_header: Header, call_req: &Web3CallRequest) ->
             latest_header.gas_limit
         },
         extra_data: Default::default(),
+        mixed_hash: None,
         nonce: if let Some(nonce) = call_req.nonce {
             H64::from_low_u64_le(nonce.as_u64())
         } else {

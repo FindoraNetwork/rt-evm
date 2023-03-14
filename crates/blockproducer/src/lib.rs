@@ -79,6 +79,7 @@ impl<'a> BlockProducer<'a> {
             number: self.block_number,
             gas_limit: MAX_BLOCK_GAS_LIMIT.into(),
             extra_data: Default::default(),
+            mixed_hash: None,
             base_fee_per_gas: BASE_FEE_PER_GAS.into(),
             chain_id: self.chain_id,
             tx_hashes: txs.iter().map(|tx| tx.transaction.hash).collect(),

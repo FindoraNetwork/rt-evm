@@ -66,7 +66,10 @@ impl Config {
             tokio::time::sleep(Duration::from_secs(block_interval)).await;
 
             // let web3 API to known the node status,
-            // set the real status in a real production environment
+            // should be set to a real value in production environments.
+            //
+            // SEE ALSO:
+            // https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_syncing
             set_node_sync_status(SyncStatus::default());
 
             let producer = evm_rt.generate_blockproducer(select_proposer()).c(d!())?;

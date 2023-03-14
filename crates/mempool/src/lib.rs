@@ -34,7 +34,7 @@ impl Default for TinyMempool {
     fn default() -> Self {
         // at most 10 minutes for a tx to be alive in mempool,
         // either to be confirmed, or to be discarded
-        Self::new(20_0000, 600)
+        Self::new(10_0000, 500)
     }
 }
 

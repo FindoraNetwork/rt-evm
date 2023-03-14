@@ -2,7 +2,7 @@ pub mod adapter;
 pub mod jsonrpc;
 
 pub use adapter::DefaultAPIAdapter;
-pub use jsonrpc::{run_jsonrpc_server, web3_types::SyncStatus};
+pub use jsonrpc::{run_jsonrpc_server, web3_types::SyncStatus, ServerHandlers};
 
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;

@@ -6,7 +6,7 @@ use rt_evm_mempool::Mempool;
 use rt_evm_model::{
     traits::{BlockStorage as _, Executor as _, TxStorage as _},
     types::{
-        Block, ExecResp, ExecutorContext, Hash, MerkleRoot, Proposal, Receipt,
+        Block, ExecResp, ExecutorContext, Hash, Header, MerkleRoot, Proposal, Receipt,
         SignedTransaction, BASE_FEE_PER_GAS, H160, MAX_BLOCK_GAS_LIMIT, U256,
     },
 };
@@ -36,18 +36,25 @@ pub struct BlockProducer {
 }
 
 impl BlockProducer {
-    pub fn generate_block_and_persist(&self, txs: Vec<SignedTransaction>) -> Result<()> {
+    pub fn generate_block_and_persist(
+        &self,
+        txs: Vec<SignedTransaction>,
+    ) -> Result<Header> {
         let (block, receipts) = self.generate_block(&txs).c(d!())?;
+        let header = block.header.clone();
+
         self.storage
-            .insert_transactions(block.header.number, txs)
+            .insert_transactions(header.number, txs)
             .c(d!())?;
         self.storage
-            .insert_receipts(block.header.number, receipts)
+            .insert_receipts(header.number, receipts)
             .c(d!())?;
-        self.storage.set_block(block).c(d!())
+        self.storage.set_block(block).c(d!())?;
+
+        Ok(header)
     }
 
-    pub fn generate_block(
+    fn generate_block(
         &self,
         txs: &[SignedTransaction],
     ) -> Result<(Block, Vec<Receipt>)> {

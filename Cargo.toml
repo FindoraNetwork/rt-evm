@@ -27,8 +27,9 @@ rt-evm-storage = { path = "crates/storage" }
 rt-evm-blockproducer = { path = "crates/blockproducer" }
 rt-evm-model = { path = "crates/model" }
 
-[dev-dependencies]
 tokio = "1.25"
+
+[dev-dependencies]
 
 [[example]]
 name = "demo"

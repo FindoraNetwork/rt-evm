@@ -9,6 +9,7 @@ pub use rt_evm_mempool as mempool;
 pub use rt_evm_model as model;
 pub use rt_evm_storage as storage;
 
+use api::{run_jsonrpc_server, DefaultAPIAdapter as API};
 use blockproducer::BlockProducer;
 use executor::RTEvmExecutorAdapter;
 use mempool::Mempool;
@@ -183,6 +184,39 @@ impl EvmRuntime {
             trie: self.copy_trie_handler(),
             storage: self.copy_storage_handler(),
         })
+    }
+
+    pub async fn spawn_jsonrpc_server(
+        &self,
+        client_version: &str,
+        http_listening_address: Option<&str>,
+        ws_listening_address: Option<&str>,
+    ) -> Result<()> {
+        let api = Arc::new(API::new(
+            self.copy_mempool_handler(),
+            self.copy_trie_handler(),
+            self.copy_storage_handler(),
+        ));
+
+        let (http_hdr, ws_hdr) = run_jsonrpc_server(
+            api,
+            None,
+            client_version,
+            http_listening_address,
+            ws_listening_address,
+        )
+        .await
+        .c(d!())?;
+
+        if let Some(hdr) = http_hdr {
+            tokio::spawn(async { hdr.await });
+        }
+
+        if let Some(hdr) = ws_hdr {
+            tokio::spawn(async { hdr.await });
+        }
+
+        Ok(())
     }
 }
 

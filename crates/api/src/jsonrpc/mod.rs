@@ -214,13 +214,15 @@ pub trait RTEvmNodeRpc {
     fn sha3(&self, data: Hex) -> RpcResult<Hash>;
 }
 
+pub type ServerHandlers = (Option<HttpServerHandle>, Option<WsServerHandle>);
+
 pub async fn run_jsonrpc_server<Adapter: APIAdapter + 'static>(
     adapter: Arc<Adapter>,
     gas_cap: Option<u64>,
     client_version: &str,
     http_listening_address: Option<&str>,
     ws_listening_address: Option<&str>,
-) -> Result<(Option<HttpServerHandle>, Option<WsServerHandle>)> {
+) -> Result<ServerHandlers> {
     let mut ret = (None, None);
 
     let mut rpc = impls::Web3RpcImpl::new(Arc::clone(&adapter), gas_cap).into_rpc();

@@ -1,8 +1,6 @@
 use rt_evm::{
-    api::{
-        run_jsonrpc_server, set_node_sync_status, DefaultAPIAdapter as API, SyncStatus,
-    },
-    model::{traits::BlockStorage as _, types::H160},
+    api::{set_node_sync_status, SyncStatus},
+    model::types::H160,
     EvmRuntime, TokenDistributon,
 };
 use ruc::*;
@@ -46,32 +44,23 @@ impl Config {
             &self.genesis_token_distributions,
         )
         .c(d!())?;
+        let rt = Arc::new(rt);
 
-        let api = Arc::new(API::new(
-            rt.copy_mempool_handler(),
-            rt.copy_trie_handler(),
-            rt.copy_storage_handler(),
-        ));
+        // will NOT block current thread
+        rt.spawn_jsonrpc_server(
+            self.client_version.as_str(),
+            self.http_listening_address.as_deref(),
+            self.ws_listening_address.as_deref(),
+        )
+        .await
+        .c(d!())?;
 
-        let cfg = self.clone();
-        tokio::spawn(async move {
-            pnk!(
-                run_jsonrpc_server(
-                    api,
-                    None,
-                    &cfg.client_version,
-                    cfg.http_listening_address.as_deref(),
-                    cfg.ws_listening_address.as_deref(),
-                )
-                .await
-            )
-        });
-
+        // the inner loop will block current thread !
         self.start_consensus_engine(rt).await.c(d!())
     }
 
     // a fake consensus demo
-    async fn start_consensus_engine(&self, evm_rt: EvmRuntime) -> Result<()> {
+    async fn start_consensus_engine(&self, evm_rt: Arc<EvmRuntime>) -> Result<()> {
         let block_interval = 3; // in seconds
 
         loop {
@@ -84,11 +73,9 @@ impl Config {
             let producer = evm_rt.generate_blockproducer(select_proposer()).c(d!())?;
 
             // take at most 1000 transactions to propose a new block
-            let txs = producer.mempool.tx_take_propose(1000);
+            let txs = evm_rt.mempool_handler().tx_take_propose(1000);
 
-            producer.generate_block_and_persist(txs).c(d!())?;
-
-            let header = pnk!(evm_rt.storage_handler().get_latest_block_header());
+            let header = producer.generate_block_and_persist(txs).c(d!())?;
             dbg!(header);
         }
     }
@@ -109,6 +96,8 @@ async fn main() -> Result<()> {
     let cfg = Config {
         chain_id: 9527,
         genesis_token_distributions: list,
+        http_listening_address: Some("localhost:60001".to_owned()),
+        ws_listening_address: Some("localhost:60002".to_owned()),
         ..Default::default()
     };
 

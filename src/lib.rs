@@ -9,6 +9,8 @@ pub use rt_evm_mempool as mempool;
 pub use rt_evm_model as model;
 pub use rt_evm_storage as storage;
 
+pub use model::types::H160 as Address;
+
 use api::{run_jsonrpc_server, DefaultAPIAdapter as API};
 use blockproducer::BlockProducer;
 use executor::RTEvmExecutorAdapter;

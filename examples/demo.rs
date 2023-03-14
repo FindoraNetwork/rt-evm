@@ -1,7 +1,6 @@
 use rt_evm::{
     api::{set_node_sync_status, SyncStatus},
-    model::types::H160,
-    EvmRuntime, TokenDistributon,
+    Address, EvmRuntime, TokenDistributon,
 };
 use ruc::*;
 use std::{sync::Arc, time::Duration};
@@ -82,14 +81,14 @@ impl Config {
 }
 
 // fake
-fn select_proposer() -> H160 {
-    H160::random()
+fn select_proposer() -> Address {
+    Address::random()
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let list = (0u64..1000)
-        .map(|n| TokenDistributon::new(H160::from_low_u64_ne(n), n.into()))
+        .map(|n| TokenDistributon::new(Address::from_low_u64_ne(n), n.into()))
         .collect();
 
     // Set a real config for your production environment !

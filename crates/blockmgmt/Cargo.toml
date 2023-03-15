@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ruc = "4.0"
+ruc = "4.1"
 
 rt-evm-mempool = { path = "../mempool" }
 rt-evm-executor = { path = "../executor" }

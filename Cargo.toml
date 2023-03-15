@@ -15,8 +15,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ruc = "4.0.1"
-vsdb = "0.50.2"
+ruc = "4.1.0"
+vsdb = "0.51.0"
 once_cell = "1.17.1"
 bcs = "0.1.5"
 
@@ -27,7 +27,7 @@ rt-evm-storage = { path = "crates/storage" }
 rt-evm-blockmgmt = { path = "crates/blockmgmt" }
 rt-evm-model = { path = "crates/model" }
 
-tokio = "1.25"
+tokio = "1.26"
 
 [dev-dependencies]
 

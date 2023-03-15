@@ -4,12 +4,9 @@ name = "rt-evm-executor"
 version = "0.1.0"
 
 [dependencies]
-ruc = "4.0.1"
+ruc = { version = "4.1.0", features = ["crypto"] }
 rlp = "0.5"
 evm = "0.37"
-
-triehash = "0.8.4"
-blake3-hasher = "0.1.0"
 
 # deps of precompiles
 az = "1.2"

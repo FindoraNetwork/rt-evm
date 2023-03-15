@@ -3,7 +3,7 @@
 //!
 
 pub use rt_evm_api as api;
-pub use rt_evm_blockproducer as blockproducer;
+pub use rt_evm_blockmgmt as blockmgmt;
 pub use rt_evm_executor as executor;
 pub use rt_evm_mempool as mempool;
 pub use rt_evm_model as model;
@@ -12,7 +12,7 @@ pub use rt_evm_storage as storage;
 pub use model::types::H160 as Address;
 
 use api::{run_jsonrpc_server, DefaultAPIAdapter as API};
-use blockproducer::BlockProducer;
+use blockmgmt::BlockMgmt;
 use executor::RTEvmExecutorAdapter;
 use mempool::Mempool;
 use model::{
@@ -173,19 +173,14 @@ impl EvmRuntime {
         Arc::clone(&self.storage)
     }
 
-    pub fn generate_blockproducer(&self, proposer: H160) -> Result<BlockProducer> {
-        let header = self.storage.get_latest_block_header().c(d!())?;
-        Ok(BlockProducer {
+    pub fn generate_blockproducer(&self, proposer: H160) -> Result<BlockMgmt> {
+        BlockMgmt::new(
             proposer,
-            prev_block_hash: header.hash(),
-            prev_state_root: header.state_root,
-            block_number: header.number + 1,
-            block_timestamp: ts!(),
-            chain_id: self.chain_id,
-            mempool: self.copy_mempool_handler(),
-            trie: self.copy_trie_handler(),
-            storage: self.copy_storage_handler(),
-        })
+            self.copy_mempool_handler(),
+            self.copy_trie_handler(),
+            self.copy_storage_handler(),
+        )
+        .c(d!())
     }
 
     pub async fn spawn_jsonrpc_server(

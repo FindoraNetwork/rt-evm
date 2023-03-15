@@ -1,5 +1,6 @@
 use rt_evm::{
     api::{set_node_sync_status, SyncStatus},
+    model::traits::BlockStorage,
     Address, EvmRuntime, TokenDistributon,
 };
 use ruc::*;
@@ -76,8 +77,15 @@ impl Config {
             // take at most 1000 transactions to propose a new block
             let txs = evm_rt.mempool_handler().tx_take_propose(1000);
 
-            let header = producer.generate_block_and_persist(txs).c(d!())?;
-            dbg!(header);
+            let header = producer.produce_block(txs.clone()).c(d!())?;
+            dbg!(&header);
+
+            evm_rt
+                .storage_handler()
+                .get_fatblock(header.number)
+                .c(d!())?
+                .c(d!())
+                .and_then(|fb| producer.verify_block(&fb).c(d!()))?;
         }
     }
 }

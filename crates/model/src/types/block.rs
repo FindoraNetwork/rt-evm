@@ -204,3 +204,20 @@ pub struct FatBlock {
     pub block: Block,
     pub txs: Vec<SignedTransaction>,
 }
+
+pub struct FatBlockRef<'a> {
+    pub block: &'a Block,
+    pub txs: &'a [SignedTransaction],
+}
+
+impl<'a> FatBlockRef<'a> {
+    pub fn new(block: &'a Block, txs: &'a [SignedTransaction]) -> Self {
+        Self { block, txs }
+    }
+}
+
+impl<'a> From<&'a FatBlock> for FatBlockRef<'a> {
+    fn from(fb: &'a FatBlock) -> Self {
+        Self::new(&fb.block, &fb.txs)
+    }
+}

@@ -1,25 +1,27 @@
 use rt_evm_executor::{
-    logs_bloom, trie_root, RTEvmExecutor as Executor,
+    logs_bloom, trie_root_indexed, trie_root_transactions, RTEvmExecutor as Executor,
     RTEvmExecutorAdapter as EvmExecBackend,
 };
 use rt_evm_mempool::Mempool;
 use rt_evm_model::{
     traits::{BlockStorage as _, Executor as _, TxStorage as _},
     types::{
-        Block, ExecResp, ExecutorContext, Hash, Header, MerkleRoot, Proposal, Receipt,
-        SignedTransaction, BASE_FEE_PER_GAS, H160, MAX_BLOCK_GAS_LIMIT, U256,
+        Block, ExecResp, ExecutorContext, FatBlock, FatBlockRef, Hash, Header,
+        MerkleRoot, Proposal, Receipt, SignedTransaction, BASE_FEE_PER_GAS, H160,
+        MAX_BLOCK_GAS_LIMIT, U256,
     },
 };
 use rt_evm_storage::{MptStore, Storage};
 use ruc::*;
 use std::sync::Arc;
 
-pub struct BlockProducer {
+pub struct BlockMgmt {
     pub proposer: H160,
 
-    // the state hash of the previous block
+    // the block hash of the previous block
     pub prev_block_hash: MerkleRoot,
 
+    // the state hash of the previous block
     pub prev_state_root: MerkleRoot,
 
     // the height of the proposing block
@@ -35,11 +37,29 @@ pub struct BlockProducer {
     pub storage: Arc<Storage>,
 }
 
-impl BlockProducer {
-    pub fn generate_block_and_persist(
-        &self,
-        txs: Vec<SignedTransaction>,
-    ) -> Result<Header> {
+impl BlockMgmt {
+    pub fn new(
+        proposer: H160,
+        mempool: Arc<Mempool>,
+        trie: Arc<MptStore>,
+        storage: Arc<Storage>,
+    ) -> Result<Self> {
+        let latest_block_header = storage.get_latest_block_header().c(d!())?;
+        Ok(Self {
+            proposer,
+            prev_block_hash: latest_block_header.hash(),
+            prev_state_root: latest_block_header.state_root,
+            block_number: 1 + latest_block_header.number,
+            block_timestamp: ts!(),
+            chain_id: latest_block_header.chain_id,
+            mempool,
+            trie,
+            storage,
+        })
+    }
+
+    /// generate a new block and persist it
+    pub fn produce_block(&self, txs: Vec<SignedTransaction>) -> Result<Header> {
         let (block, receipts) = self.generate_block(&txs).c(d!())?;
         let header = block.header.clone();
 
@@ -84,19 +104,11 @@ impl BlockProducer {
         Ok((block, receipts))
     }
 
-    fn generate_proposal(&self, txs: &[SignedTransaction]) -> Proposal {
-        let tx_hashes_indexed = txs
-            .iter()
-            .map(|tx| tx.transaction.hash)
-            .enumerate()
-            .map(|(i, h)| (u32::to_be_bytes(i as u32), h))
-            .collect::<Vec<_>>();
-        let transactions_root = trie_root(tx_hashes_indexed);
-
+    pub fn generate_proposal(&self, txs: &[SignedTransaction]) -> Proposal {
         Proposal {
             prev_hash: self.prev_block_hash,
             proposer: self.proposer,
-            transactions_root,
+            transactions_root: trie_root_transactions(txs),
             timestamp: self.block_timestamp,
             number: self.block_number,
             gas_limit: MAX_BLOCK_GAS_LIMIT.into(),
@@ -106,6 +118,56 @@ impl BlockProducer {
             chain_id: self.chain_id,
             tx_hashes: txs.iter().map(|tx| tx.transaction.hash).collect(),
         }
+    }
+
+    pub fn verify_block(&self, fb: &FatBlock) -> Result<()> {
+        self.verify_refed_block(fb.into())
+    }
+
+    pub fn verify_refed_block(&self, fb: FatBlockRef) -> Result<()> {
+        if fb.block.header.number < 1 {
+            return Err(eg!());
+        }
+
+        if self.chain_id != fb.block.header.chain_id {
+            return Err(eg!());
+        }
+
+        if ts!() < fb.block.header.timestamp {
+            return Err(eg!());
+        }
+
+        let prev_header = self
+            .storage
+            .get_block_header(fb.block.header.number - 1)
+            .c(d!())?
+            .c(d!())?;
+
+        if fb.block.header.prev_hash != prev_header.hash() {
+            return Err(eg!());
+        }
+
+        let txs_root = trie_root_indexed(&fb.block.tx_hashes.iter().collect::<Vec<_>>());
+        if txs_root != fb.block.header.transactions_root {
+            return Err(eg!());
+        }
+
+        if fb.txs.len() != fb.block.tx_hashes.len() {
+            return Err(eg!());
+        }
+
+        for (tx, hash_in_block) in fb.txs.iter().zip(fb.block.tx_hashes.iter()) {
+            tx.transaction.check_hash().c(d!())?;
+            if &tx.transaction.hash != hash_in_block {
+                return Err(eg!());
+            }
+
+            if tx != &SignedTransaction::try_from(tx.transaction.clone()).c(d!())? {
+                return Err(eg!());
+            }
+        }
+
+        Ok(())
     }
 }
 

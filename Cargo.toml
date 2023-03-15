@@ -4,7 +4,7 @@ members = [
     "crates/mempool",
     "crates/executor",
     "crates/storage",
-    "crates/blockproducer",
+    "crates/blockmgmt",
     "crates/model",
     "crates/utils/crypto",
 ]
@@ -24,7 +24,7 @@ rt-evm-api = { path = "crates/api" }
 rt-evm-mempool = { path = "crates/mempool" }
 rt-evm-executor = { path = "crates/executor" }
 rt-evm-storage = { path = "crates/storage" }
-rt-evm-blockproducer = { path = "crates/blockproducer" }
+rt-evm-blockmgmt = { path = "crates/blockmgmt" }
 rt-evm-model = { path = "crates/model" }
 
 tokio = "1.25"

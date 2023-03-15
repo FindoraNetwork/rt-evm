@@ -1,4 +1,6 @@
-use rt_evm_model::types::{Bloom, Hasher, Log, H160, H256, U256};
+use rt_evm_model::types::{
+    Bloom, Hasher, Log, MerkleRoot, SignedTransaction, H160, H256, RLP_NULL, U256,
+};
 
 const FUNC_SELECTOR_LEN: usize = 4;
 const U256_BE_BYTES_LEN: usize = 32;
@@ -60,6 +62,43 @@ fn m3_2048(bloom: &mut Bloom, x: &[u8]) {
         let bit = (hash[i + 1] as usize + ((hash[i] as usize) << 8)) & 0x7FF;
         bloom.0[BLOOM_BYTE_LENGTH - 1 - bit / 8] |= 1 << (bit % 8);
     }
+}
+
+pub fn trie_root<A, B>(input: Vec<(A, B)>) -> MerkleRoot
+where
+    A: AsRef<[u8]> + Ord,
+    B: AsRef<[u8]>,
+{
+    if input.is_empty() {
+        RLP_NULL
+    } else {
+        triehash::trie_root::<blake3_hasher::Blake3Hasher, _, _, _>(input).into()
+    }
+}
+
+pub fn trie_root_indexed<I>(input: &[I]) -> MerkleRoot
+where
+    I: AsRef<[u8]>,
+{
+    if input.is_empty() {
+        RLP_NULL
+    } else {
+        let indexed_hashes = input
+            .iter()
+            .enumerate()
+            .map(|(idx, i)| (u32::to_be_bytes(idx as u32), i))
+            .collect();
+        trie_root(indexed_hashes)
+    }
+}
+
+pub fn trie_root_transactions(input: &[SignedTransaction]) -> MerkleRoot {
+    trie_root_indexed(
+        &input
+            .iter()
+            .map(|tx| tx.transaction.hash)
+            .collect::<Vec<_>>(),
+    )
 }
 
 #[cfg(test)]

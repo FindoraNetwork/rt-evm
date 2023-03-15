@@ -7,7 +7,10 @@ mod utils;
 use crate::precompiles::build_precompile_set;
 pub use crate::{
     adapter::RTEvmExecutorAdapter,
-    utils::{code_address, decode_revert_msg, logs_bloom},
+    utils::{
+        code_address, decode_revert_msg, logs_bloom, trie_root_indexed,
+        trie_root_transactions,
+    },
 };
 use evm::{
     executor::stack::{
@@ -19,7 +22,7 @@ use rt_evm_model::{
     codec::ProtocolCodec,
     traits::{ApplyBackend, Backend, Executor, ExecutorAdapter as Adapter},
     types::{
-        data_gas_cost, Account, Config, ExecResp, Hasher, MerkleRoot, SignedTransaction,
+        data_gas_cost, Account, Config, ExecResp, Hasher, SignedTransaction,
         TransactionAction, TxResp, GAS_CALL_TRANSACTION, GAS_CREATE_TRANSACTION, H160,
         NIL_DATA, RLP_NULL, U256,
     },
@@ -115,11 +118,7 @@ impl Executor for RTEvmExecutor {
         let precompiles = build_precompile_set();
         let config = Config::london();
 
-        for (i, tx) in txs
-            .iter()
-            .enumerate()
-            .map(|(i, tx)| (u32::to_be_bytes(i as u32), tx))
-        {
+        for tx in txs.iter() {
             backend.set_gas_price(tx.transaction.unsigned.gas_price());
             backend.set_origin(tx.sender);
 
@@ -129,8 +128,8 @@ impl Executor for RTEvmExecutor {
             gas += r.gas_used;
             fee = fee.checked_add(r.fee_cost).unwrap_or(U256::max_value());
 
-            tx_hashes.push((i, tx.transaction.hash));
-            receipt_hashes.push((i, Hasher::digest(&r.ret)));
+            tx_hashes.push(tx.transaction.hash);
+            receipt_hashes.push(Hasher::digest(&r.ret));
 
             res.push(r);
         }
@@ -138,13 +137,13 @@ impl Executor for RTEvmExecutor {
         // commit changes by all txs included in this block only once
         let new_state_root = backend.commit();
 
-        let receipt_root = trie_root(receipt_hashes);
-        let transaction_root = trie_root(tx_hashes);
+        let transaction_root = trie_root_indexed(&tx_hashes);
+        let receipt_root = trie_root_indexed(&receipt_hashes);
 
         ExecResp {
             state_root: new_state_root,
-            receipt_root,
             transaction_root,
+            receipt_root,
             gas_used: gas,
             fee_used: fee, // sum(<gas in tx * gas price setted by tx> ...)
             txs_resp: res,
@@ -260,17 +259,5 @@ impl RTEvmExecutor {
             code_address: code_addr,
             removed: false,
         }
-    }
-}
-
-pub fn trie_root<A, B>(input: Vec<(A, B)>) -> MerkleRoot
-where
-    A: AsRef<[u8]> + Ord,
-    B: AsRef<[u8]>,
-{
-    if input.is_empty() {
-        RLP_NULL
-    } else {
-        triehash::trie_root::<blake3_hasher::Blake3Hasher, _, _, _>(input).into()
     }
 }

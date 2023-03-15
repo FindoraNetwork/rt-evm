@@ -14,9 +14,6 @@ pub use TinyMempool as Mempool;
 pub struct TinyMempool {
     txs: Cache<Hash, SignedTx>,
 
-    // keep the order for proposing new blocks
-    propose_order: ArrayQueue<Hash>,
-
     // record transactions that need to be broadcasted
     broadcast_queue: ArrayQueue<Hash>,
 
@@ -62,7 +59,6 @@ impl TinyMempool {
                 .time_to_live(Duration::from_secs(tx_lifetime_in_secs))
                 .eviction_listener_with_conf(listener, listener_conf)
                 .build(),
-            propose_order: ArrayQueue::new(capacity as usize),
             broadcast_queue: ArrayQueue::new(capacity as usize),
             address_pending_cnter,
             capacity,
@@ -78,10 +74,6 @@ impl TinyMempool {
         self.broadcast_queue
             .push(tx.transaction.hash)
             .map_err(|e| eg!("{}: mempool is full", e))?;
-
-        // we don't always propose blocks,
-        // or even never propose, so use `force push` here
-        self.propose_order.force_push(tx.transaction.hash);
 
         *self
             .address_pending_cnter
@@ -121,14 +113,14 @@ impl TinyMempool {
     }
 
     // broadcast transactions to other nodes ?
-    pub fn tx_take_broadcast(&self, mut cap: u64) -> Vec<SignedTx> {
+    pub fn tx_take_broadcast(&self, mut limit: u64) -> Vec<SignedTx> {
         let mut ret = vec![];
 
-        while cap > 0 {
+        while limit > 0 {
             if let Some(h) = self.broadcast_queue.pop() {
                 if let Some(tx) = self.txs.get(&h) {
                     ret.push(tx);
-                    cap -= 1;
+                    limit -= 1;
                 }
             } else {
                 break;
@@ -139,19 +131,13 @@ impl TinyMempool {
     }
 
     // package some transactions for proposing a new block ?
-    pub fn tx_take_propose(&self, mut cap: u64) -> Vec<SignedTx> {
-        let mut ret = vec![];
-
-        while cap > 0 {
-            if let Some(h) = self.propose_order.pop() {
-                if let Some(tx) = self.txs.get(&h) {
-                    ret.push(tx);
-                    cap -= 1;
-                }
-            } else {
-                break;
-            }
-        }
+    pub fn tx_take_propose(&self, limit: u64) -> Vec<SignedTx> {
+        let mut ret = self
+            .txs
+            .iter()
+            .take(limit as usize)
+            .map(|(_, tx)| tx)
+            .collect::<Vec<_>>();
 
         ret.sort_unstable_by_key(|tx| *tx.transaction.unsigned.nonce());
 

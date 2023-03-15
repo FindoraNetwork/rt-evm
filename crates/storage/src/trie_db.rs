@@ -516,12 +516,26 @@ mod backend {
     }
 }
 
-mod cache {
+pub mod cache {
     use once_cell::sync::Lazy;
     use sp_trie::cache::{CacheSize, SharedTrieCache};
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     const GB: usize = 1024 * 1024 * 1024;
+    const DEFAULT_SIZE: usize = 4 * GB;
+
+    static SIZE: AtomicUsize = AtomicUsize::new(0);
 
     pub static GLOBAL_CACHE: Lazy<SharedTrieCache<blake3_hasher::Blake3Hasher>> =
-        Lazy::new(|| SharedTrieCache::new(CacheSize::new(4 * GB)));
+        Lazy::new(|| {
+            let mut size = SIZE.load(Ordering::SeqCst);
+            if 0 == size {
+                size = DEFAULT_SIZE;
+            }
+            SharedTrieCache::new(CacheSize::new(size))
+        });
+
+    pub fn set_trie_cache_size(size: usize) {
+        SIZE.store(size, Ordering::SeqCst);
+    }
 }

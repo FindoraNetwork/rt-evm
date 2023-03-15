@@ -7,7 +7,9 @@ use moka::sync::Cache as Lru;
 use parking_lot::RwLock;
 use rt_evm_model::{
     traits::{BlockStorage, TxStorage},
-    types::{Block, BlockNumber, Hash, Header, Receipt, SignedTransaction, H256},
+    types::{
+        Block, BlockNumber, FatBlock, Hash, Header, Receipt, SignedTransaction, H256,
+    },
 };
 use ruc::*;
 use serde::{Deserialize, Serialize};
@@ -31,6 +33,21 @@ impl FunStorage {
             db: DB::new(),
             cache: Cache::new(cache_size),
         }
+    }
+
+    fn get_transactions_unlimited(
+        &self,
+        hashes: &[Hash],
+    ) -> Vec<Option<(BlockNumber, SignedTransaction)>> {
+        hashes
+            .iter()
+            .map(|txh| {
+                self.cache
+                    .transactions
+                    .get(txh)
+                    .or_else(|| self.db.transactions.get(txh))
+            })
+            .collect()
     }
 }
 
@@ -139,33 +156,47 @@ impl BlockStorage for FunStorage {
 
         let bh = block.hash();
         let header = block.header.clone();
-        let height = header.number;
+        let number = header.number;
 
-        db.block_numbers.insert(&bh, &height);
-        db.headers.insert(&height, &header);
-        db.blocks.insert(&height, &block);
+        db.block_numbers.insert(&bh, &number);
+        db.headers.insert(&number, &header);
+        db.blocks.insert(&number, &block);
 
-        self.cache.block_numbers.insert(bh, height);
-        self.cache.headers.insert(height, header);
-        self.cache.blocks.insert(height, block.clone());
+        self.cache.block_numbers.insert(bh, number);
+        self.cache.headers.insert(number, header);
+        self.cache.blocks.insert(number, block.clone());
 
         self.set_latest_block(block).c(d!())
     }
 
-    fn get_block(&self, height: u64) -> Result<Option<Block>> {
+    fn get_block(&self, number: u64) -> Result<Option<Block>> {
         Ok(self
             .cache
             .blocks
-            .get(&height)
-            .or_else(|| self.db.blocks.get(&height)))
+            .get(&number)
+            .or_else(|| self.db.blocks.get(&number)))
     }
 
-    fn get_block_header(&self, height: u64) -> Result<Option<Header>> {
+    fn get_fatblock(&self, number: u64) -> Result<Option<FatBlock>> {
+        if let Some(block) = self.get_block(number).c(d!())? {
+            let txs = self
+                .get_transactions_unlimited(&block.tx_hashes)
+                .into_iter()
+                .map(|maybe_tx| pnk!(maybe_tx).1)
+                .collect();
+            let fat_block = FatBlock { block, txs };
+            Ok(Some(fat_block))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn get_block_header(&self, number: u64) -> Result<Option<Header>> {
         Ok(self
             .cache
             .headers
-            .get(&height)
-            .or_else(|| self.db.headers.get(&height)))
+            .get(&number)
+            .or_else(|| self.db.headers.get(&number)))
     }
 
     fn get_latest_block(&self) -> Result<Block> {
@@ -190,14 +221,14 @@ impl BlockStorage for FunStorage {
 impl TxStorage for FunStorage {
     fn insert_transactions(
         &self,
-        block_height: u64,
+        block_number: u64,
         signed_txs: Vec<SignedTransaction>,
     ) -> Result<()> {
         let mut db = self.db.shadow();
 
         signed_txs
             .into_iter()
-            .map(|tx| (block_height, tx))
+            .map(|tx| (block_number, tx))
             .for_each(|h_tx| {
                 db.transactions.insert(&h_tx.1.transaction.hash, &h_tx);
                 self.cache
@@ -209,7 +240,7 @@ impl TxStorage for FunStorage {
     }
 
     fn get_block_by_hash(&self, block_hash: &Hash) -> Result<Option<Block>> {
-        if let Some(height) = self
+        if let Some(number) = self
             .cache
             .block_numbers
             .get(block_hash)
@@ -217,8 +248,8 @@ impl TxStorage for FunStorage {
         {
             self.cache
                 .blocks
-                .get(&height)
-                .or_else(|| self.db.blocks.get(&height))
+                .get(&number)
+                .or_else(|| self.db.blocks.get(&number))
                 .map(Some)
                 .c(d!("BUG!"))
         } else {
@@ -228,23 +259,23 @@ impl TxStorage for FunStorage {
 
     fn get_transactions(
         &self,
-        block_height: u64,
+        block_number: u64,
         hashes: &[Hash],
     ) -> Result<Vec<Option<SignedTransaction>>> {
         if hashes.len() > BATCH_LIMIT {
             return Err(eg!("request too large"));
         }
 
-        Ok(hashes
-            .iter()
-            .map(|txh| {
-                self.cache
-                    .transactions
-                    .get(txh)
-                    .or_else(|| self.db.transactions.get(txh))
-                    .and_then(|(height, tx)| {
-                        alt!(height == block_height, Some(tx), None)
-                    })
+        Ok(self
+            .get_transactions_unlimited(hashes)
+            .into_iter()
+            .map(|maybe_tx| {
+                if let Some((number, tx)) = maybe_tx {
+                    if number == block_number {
+                        return Some(tx);
+                    }
+                }
+                None
             })
             .collect())
     }
@@ -258,7 +289,7 @@ impl TxStorage for FunStorage {
             .map(|(_, tx)| tx))
     }
 
-    fn insert_receipts(&self, _block_height: u64, receipts: Vec<Receipt>) -> Result<()> {
+    fn insert_receipts(&self, _block_number: u64, receipts: Vec<Receipt>) -> Result<()> {
         let mut db = self.db.shadow();
 
         receipts.into_iter().for_each(|r| {
@@ -279,7 +310,7 @@ impl TxStorage for FunStorage {
 
     fn get_receipts(
         &self,
-        block_height: u64,
+        block_number: u64,
         hashes: &[Hash],
     ) -> Result<Vec<Option<Receipt>>> {
         if hashes.len() > BATCH_LIMIT {
@@ -293,7 +324,7 @@ impl TxStorage for FunStorage {
                     .receipts
                     .get(txh)
                     .or_else(|| self.db.receipts.get(txh))
-                    .and_then(|r| alt!(r.block_number == block_height, Some(r), None))
+                    .and_then(|r| alt!(r.block_number == block_number, Some(r), None))
             })
             .collect())
     }

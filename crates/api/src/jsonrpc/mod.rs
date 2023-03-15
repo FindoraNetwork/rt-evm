@@ -36,14 +36,14 @@ pub trait RTEvmWeb3Rpc {
     async fn get_block_by_number(
         &self,
         number: BlockId,
-        show_rich_tx: bool,
+        show_fat_tx: bool,
     ) -> RpcResult<Option<Web3Block>>;
 
     #[method(name = "eth_getBlockByHash")]
     async fn get_block_by_hash(
         &self,
         hash: H256,
-        show_rich_tx: bool,
+        show_fat_tx: bool,
     ) -> RpcResult<Option<Web3Block>>;
 
     #[method(name = "eth_blockNumber")]

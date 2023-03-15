@@ -17,28 +17,28 @@ pub const EMPTY_UNCLE_HASH: H256 = H256([
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
-pub enum RichTransactionOrHash {
+pub enum FatTransactionOrHash {
     Hash(Hash),
-    Rich(Web3Transaction),
+    Fat(Web3Transaction),
 }
 
-impl Serialize for RichTransactionOrHash {
+impl Serialize for FatTransactionOrHash {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         match self {
-            RichTransactionOrHash::Hash(h) => h.serialize(serializer),
-            RichTransactionOrHash::Rich(stx) => stx.serialize(serializer),
+            FatTransactionOrHash::Hash(h) => h.serialize(serializer),
+            FatTransactionOrHash::Fat(stx) => stx.serialize(serializer),
         }
     }
 }
 
-impl RichTransactionOrHash {
+impl FatTransactionOrHash {
     pub fn get_hash(&self) -> Hash {
         match self {
-            RichTransactionOrHash::Hash(hash) => *hash,
-            RichTransactionOrHash::Rich(tx) => tx.hash,
+            FatTransactionOrHash::Hash(hash) => *hash,
+            FatTransactionOrHash::Fat(tx) => tx.hash,
         }
     }
 }
@@ -269,7 +269,7 @@ pub struct Web3Block {
     pub seal_fields: Vec<Bytes>,
     pub base_fee_per_gas: U256,
     pub uncles: Vec<H256>,
-    pub transactions: Vec<RichTransactionOrHash>,
+    pub transactions: Vec<FatTransactionOrHash>,
     pub size: Option<U256>,
     pub nonce: H64,
 }
@@ -299,7 +299,7 @@ impl From<Block> for Web3Block {
             transactions: b
                 .tx_hashes
                 .into_iter()
-                .map(RichTransactionOrHash::Hash)
+                .map(FatTransactionOrHash::Hash)
                 .collect(),
             uncles: vec![],
             nonce: H64::default(),

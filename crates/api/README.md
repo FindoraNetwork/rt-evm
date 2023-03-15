@@ -259,9 +259,9 @@ Response
 Fetches historical records of every block back to genesis. This is like one large append-only file, and includes all block headers, block bodies, uncle blocks, and transaction receipts.
 
 #### Method `eth_getBlockByHash`
-* `eth_getBlockByHash(hash,show_rich_tx)`
+* `eth_getBlockByHash(hash,show_fat_tx)`
     * `hash`: [`H256`](#type-H256) 
-    * `show_rich_tx`: [`bool`](#type-bool)
+    * `show_fat_tx`: [`bool`](#type-bool)
 * result: [`BlockView`](#type-BlockView)
 
 Returns information about a block by hash.
@@ -270,7 +270,7 @@ Returns information about a block by hash.
 ##### Params
 
 *   `block_hash` -  DATA, 32 Bytes - Hash of a block.
-*   `show_rich_tx` -  Boolean, If true it returns the full transaction objects, if false only the hashes of the transactions.
+*   `show_fat_tx` -  Boolean, If true it returns the full transaction objects, if false only the hashes of the transactions.
 
 
 ##### Returns
@@ -851,9 +851,9 @@ Response
 
 
 #### Method `eth_getBlockByNumber`
-* `eth_getBlockByNumber(number,show_rich_tx)`
+* `eth_getBlockByNumber(number,show_fat_tx)`
     * `number`: [`BlockId`](#type-BlockId) `|` `"earliest"``|` `"latest"``|` `"pending"`
-    * `show_rich_tx`: [`bool`](#type-bool)
+    * `show_fat_tx`: [`bool`](#type-bool)
 * result: [`BlockView`](#type-Blockview) 
 
 Returns information about a block by block number.
@@ -862,7 +862,7 @@ Returns information about a block by block number.
 ##### Params
 
 *   `number` -  A block number.
-*   `show_rich_tx` -  Boolean,If true it returns the full transaction objects, if false only the hashes of the transactions.
+*   `show_fat_tx` -  Boolean,If true it returns the full transaction objects, if false only the hashes of the transactions.
 
 
 ##### Returns
@@ -2033,7 +2033,7 @@ The BlockView objects.
 
 *   `uncles`: `Array<`[`U256`](#type-U256)`>`  - Array - Array of uncle hashes.
 
-*   `transactions`:`Array<`[`RichTransactionOrHash`](#type-RichTransactionOrHash)`>` - The transactions in the block body.
+*   `transactions`:`Array<`[`FatTransactionOrHash`](#type-FatTransactionOrHash)`>` - The transactions in the block body.
 
 *   `size`: [`U256`](#type-U256)  - QUANTITY - integer the size of this block in bytes.
 

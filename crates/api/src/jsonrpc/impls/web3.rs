@@ -1,7 +1,7 @@
 use crate::jsonrpc::{
     error::RpcError,
     web3_types::{
-        BlockId, RichTransactionOrHash, Web3Block, Web3CallRequest, Web3FeeHistory,
+        BlockId, FatTransactionOrHash, Web3Block, Web3CallRequest, Web3FeeHistory,
         Web3Filter, Web3Log, Web3Receipt, Web3Transaction,
     },
     RTEvmWeb3RpcServer, RpcResult,
@@ -147,7 +147,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
     async fn get_block_by_number(
         &self,
         number: BlockId,
-        show_rich_tx: bool,
+        show_fat_tx: bool,
     ) -> RpcResult<Option<Web3Block>> {
         let block = self
             .adapter
@@ -161,7 +161,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
                 let block_number = b.header.number;
                 let block_hash = b.hash();
                 let mut ret = Web3Block::from(b);
-                if show_rich_tx {
+                if show_fat_tx {
                     let mut txs = Vec::with_capacity(capacity);
                     for (idx, tx) in ret.transactions.iter().enumerate() {
                         let tx = self
@@ -171,7 +171,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
                             .map_err(|e| Error::Custom(e.to_string()))?
                             .unwrap();
 
-                        txs.push(RichTransactionOrHash::Rich(
+                        txs.push(FatTransactionOrHash::Fat(
                             Web3Transaction::from(tx)
                                 .add_block_number(block_number)
                                 .add_block_hash(block_hash)
@@ -191,7 +191,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
     async fn get_block_by_hash(
         &self,
         hash: H256,
-        show_rich_tx: bool,
+        show_fat_tx: bool,
     ) -> RpcResult<Option<Web3Block>> {
         let block = self
             .adapter
@@ -205,7 +205,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
                 let block_number = b.header.number;
                 let block_hash = b.hash();
                 let mut ret = Web3Block::from(b);
-                if show_rich_tx {
+                if show_fat_tx {
                     let mut txs = Vec::with_capacity(capacity);
                     for (idx, tx) in ret.transactions.iter().enumerate() {
                         let tx = self
@@ -215,7 +215,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
                             .map_err(|e| Error::Custom(e.to_string()))?
                             .unwrap();
 
-                        txs.push(RichTransactionOrHash::Rich(
+                        txs.push(FatTransactionOrHash::Fat(
                             Web3Transaction::from(tx)
                                 .add_block_number(block_number)
                                 .add_block_hash(block_hash)

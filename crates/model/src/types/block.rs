@@ -200,7 +200,7 @@ impl Header {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct RichBlock {
+pub struct FatBlock {
     pub block: Block,
     pub txs: Vec<SignedTransaction>,
 }

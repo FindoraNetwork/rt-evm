@@ -25,7 +25,7 @@ use std::{fs, io::ErrorKind, mem::size_of, path::PathBuf, sync::Arc};
 use storage::{MptStore, Storage};
 
 static META_PATH: Lazy<MetaPath> = Lazy::new(|| {
-    let mut trie = vsdb::vsdb_get_base_dir();
+    let mut trie = vsdb::vsdb_get_custom_dir().to_path_buf();
     let mut storage = trie.clone();
     let mut chain_id = trie.clone();
 

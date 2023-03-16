@@ -1,6 +1,6 @@
 pub mod trie_db;
 
-pub use trie_db::{cache::set_trie_cache_size, MptStore};
+pub use trie_db::MptStore;
 pub use FunStorage as Storage;
 
 use moka::sync::Cache as Lru;

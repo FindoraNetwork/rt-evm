@@ -39,6 +39,11 @@ const HEX_PREFIX_UPPER: &str = "0X";
 pub const NIL_DATA: H256 = H256::zero();
 pub const RLP_NULL: H256 = H256::zero();
 
+pub const KB: usize = 1024;
+pub const MB: usize = 1024 * KB;
+pub const GB: usize = 1024 * MB;
+pub const TB: usize = 1024 * GB;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DBBytes(pub Bytes);
 

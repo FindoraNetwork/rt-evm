@@ -167,7 +167,7 @@ impl APIAdapter for DefaultAPIAdapter {
     ) -> Result<Vec<u8>> {
         let state_trie_tree = self
             .trie
-            .trie_restore(&RTEvmExecutorAdapter::WORLD_STATE_KEY, state_root)
+            .trie_restore(&RTEvmExecutorAdapter::WORLD_STATE_META_KEY, state_root)
             .c(d!())?;
 
         let raw_account = state_trie_tree

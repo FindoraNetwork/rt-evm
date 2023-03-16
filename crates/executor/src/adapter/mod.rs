@@ -3,7 +3,7 @@ use rt_evm_model::{
     codec::ProtocolCodec,
     traits::{ApplyBackend, Backend, BlockStorage, ExecutorAdapter, TxStorage},
     types::{
-        Account, ExecutorContext, Hasher, Log, MerkleRoot, Proposal, H160, H256,
+        Account, ExecutorContext, Hasher, Log, MerkleRoot, Proposal, GB, H160, H256, MB,
         NIL_DATA, RLP_NULL, U256,
     },
 };
@@ -227,14 +227,19 @@ impl<'a> ApplyBackend for RTEvmExecutorAdapter<'a> {
 }
 
 impl<'a> RTEvmExecutorAdapter<'a> {
-    pub const WORLD_STATE_KEY: [u8; 1] = [0];
+    pub const WORLD_STATE_META_KEY: [u8; 1] = [0];
+
+    const WORLD_STATE_CACHE_SIZE: usize = 4 * GB;
+    const ACCOUNT_STATE_CACHE_SIZE: usize = 32 * MB;
 
     pub fn new(
         trie: &'a MptStore,
         storage: &'a FunStorage,
         exec_ctx: ExecutorContext,
     ) -> Result<Self> {
-        let state = trie.trie_create(&Self::WORLD_STATE_KEY).c(d!())?;
+        let state = trie
+            .trie_create(&Self::WORLD_STATE_META_KEY, Self::WORLD_STATE_CACHE_SIZE)
+            .c(d!())?;
         Ok(RTEvmExecutorAdapter {
             state,
             trie,
@@ -250,7 +255,7 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         exec_ctx: ExecutorContext,
     ) -> Result<Self> {
         let state = trie
-            .trie_restore(&Self::WORLD_STATE_KEY, state_root)
+            .trie_restore(&Self::WORLD_STATE_META_KEY, state_root)
             .c(d!())?;
 
         Ok(RTEvmExecutorAdapter {
@@ -286,7 +291,10 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         };
 
         let mut storage_trie = if storage_root == RLP_NULL {
-            pnk!(self.trie.trie_create(address.as_bytes()))
+            pnk!(
+                self.trie
+                    .trie_create(address.as_bytes(), Self::ACCOUNT_STATE_CACHE_SIZE)
+            )
         } else {
             pnk!(
                 self.trie

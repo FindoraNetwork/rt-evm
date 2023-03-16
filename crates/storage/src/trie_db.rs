@@ -10,6 +10,7 @@ use sp_trie::{
     },
     LayoutV1, Trie, TrieDBBuilder, TrieHash, TrieMut,
 };
+use std::mem;
 use vsdb::basic::mapx_ord_rawkey::MapxOrdRawKey;
 
 #[derive(Default, Serialize, Deserialize)]
@@ -29,8 +30,12 @@ impl MptStore {
         }
     }
 
-    pub fn trie_create<'a>(&self, backend_key: &'a [u8]) -> Result<MptOnce<'a>> {
-        let backend = MptStore::new_backend();
+    pub fn trie_create<'a>(
+        &self,
+        backend_key: &'a [u8],
+        cache_size: usize,
+    ) -> Result<MptOnce<'a>> {
+        let backend = MptStore::new_backend(cache_size);
         self.put_backend(backend_key, &backend).c(d!())?;
 
         let backend = Box::into_raw(Box::new(backend));
@@ -58,16 +63,6 @@ impl MptStore {
         }
     }
 
-    pub fn trie_restore_or_create<'a>(
-        &self,
-        backend_key: &'a [u8],
-        root: MerkleRoot,
-    ) -> Result<MptOnce<'a>> {
-        self.trie_restore(backend_key, root)
-            .c(d!())
-            .or_else(|_| self.trie_create(backend_key).c(d!()))
-    }
-
     fn get_backend(&self, backend_key: &[u8]) -> Option<TrieBackend> {
         self.meta.get(backend_key)
     }
@@ -80,8 +75,8 @@ impl MptStore {
         Ok(())
     }
 
-    fn new_backend() -> TrieBackend {
-        TrieBackend::default()
+    fn new_backend(cache_size: usize) -> TrieBackend {
+        TrieBackend::new(cache_size)
     }
 }
 
@@ -143,10 +138,19 @@ pub struct MptMut<'a> {
     root: Box<TrieHash<LayoutV1<H>>>,
 }
 
+impl Drop for MptMut<'_> {
+    fn drop(&mut self) {
+        let tmp = self as *mut Self;
+        let mut tmp = unsafe { &mut *tmp }.local_cache.as_trie_db_mut_cache();
+        mem::swap(&mut tmp, &mut *self.cache);
+        tmp.merge_into(&self.local_cache, *self.root);
+    }
+}
+
 impl<'a> MptMut<'a> {
     // keep private !!
     pub fn new(backend: &'a mut TrieBackend) -> Self {
-        let local_cache = Box::into_raw(Box::new(cache::GLOBAL_CACHE.local_cache()));
+        let local_cache = Box::into_raw(Box::new(backend.get_cache_hdr().local_cache()));
         let cache =
             Box::into_raw(Box::new(unsafe { &*local_cache }.as_trie_db_mut_cache()));
 
@@ -167,7 +171,7 @@ impl<'a> MptMut<'a> {
 
     pub fn from_existing(backend: &'a mut TrieBackend, root: MerkleRoot) -> Self {
         let root = Box::into_raw(Box::new(root.to_fixed_bytes()));
-        let local_cache = Box::into_raw(Box::new(cache::GLOBAL_CACHE.local_cache()));
+        let local_cache = Box::into_raw(Box::new(backend.get_cache_hdr().local_cache()));
         let cache =
             Box::into_raw(Box::new(unsafe { &*local_cache }.as_trie_db_mut_cache()));
 
@@ -231,7 +235,7 @@ pub struct MptRo<'a> {
 impl<'a> MptRo<'a> {
     pub fn from_existing(backend: &'a TrieBackend, root: MerkleRoot) -> Self {
         let root = root.to_fixed_bytes();
-        let local_cache = Box::into_raw(Box::new(cache::GLOBAL_CACHE.local_cache()));
+        let local_cache = Box::into_raw(Box::new(backend.get_cache_hdr().local_cache()));
         let cache =
             Box::into_raw(Box::new(unsafe { &*local_cache }.as_trie_db_cache(root)));
 
@@ -267,33 +271,32 @@ mod backend {
     use hash_db::{AsHashDB, HashDB, HashDBRef, Hasher as KeyHasher, Prefix};
     use ruc::*;
     use serde::{Deserialize, Serialize};
+    use sp_trie::cache::{CacheSize, SharedTrieCache};
     use vsdb::{basic::mapx_ord_rawkey::MapxOrdRawKey as Map, RawBytes, ValueEnDe};
 
+    const GB: usize = 1024 * 1024 * 1024;
+    const DEFAULT_SIZE: CacheSize = CacheSize::new(GB);
+
     pub type TrieBackend = VsBackend<blake3_hasher::Blake3Hasher, Vec<u8>>;
+    type SharedCache = SharedTrieCache<blake3_hasher::Blake3Hasher>;
 
     pub trait TrieVar: AsRef<[u8]> + for<'a> From<&'a [u8]> {}
 
     impl<T> TrieVar for T where T: AsRef<[u8]> + for<'a> From<&'a [u8]> {}
 
+    // NOTE: make it `!Clone`
     pub struct VsBackend<H, T>
     where
         H: KeyHasher,
         T: TrieVar,
     {
         data: Map<Value<T>>,
+        cache: SharedCache,
+        cache_size: usize,
+
         hashed_null_key: H::Out,
         original_null_key: Vec<u8>,
         null_node_data: T,
-    }
-
-    impl<H, T> Default for VsBackend<H, T>
-    where
-        H: KeyHasher,
-        T: TrieVar,
-    {
-        fn default() -> Self {
-            Self::from_null_node(&[0u8][..], (&[0u8][..]).into())
-        }
     }
 
     impl<H, T> VsBackend<H, T>
@@ -301,14 +304,36 @@ mod backend {
         H: KeyHasher,
         T: TrieVar,
     {
+        /// Create a new `VsBackend` from the default null key/data
+        pub fn new(cache_size: usize) -> Self {
+            Self::from_null_node(&[0u8][..], (&[0u8][..]).into(), cache_size)
+        }
+
         /// Create a new `VsBackend` from a given null key/data
-        fn from_null_node(null_key: &[u8], null_node_data: T) -> Self {
+        fn from_null_node(
+            null_key: &[u8],
+            null_node_data: T,
+            cache_size: usize,
+        ) -> Self {
+            let cache = if 0 == cache_size {
+                SharedCache::new(DEFAULT_SIZE)
+            } else {
+                SharedCache::new(CacheSize::new(cache_size))
+            };
+
             VsBackend {
                 data: Map::new(),
+                cache,
+                cache_size,
+
                 hashed_null_key: H::hash(null_key),
                 original_null_key: null_key.to_vec(),
                 null_node_data,
             }
+        }
+
+        pub fn get_cache_hdr(&self) -> &SharedCache {
+            &self.cache
         }
     }
 
@@ -462,6 +487,8 @@ mod backend {
         T: TrieVar,
     {
         data: Map<Value<T>>,
+        cache_size: usize,
+
         original_null_key: Vec<u8>,
         null_node_data: Vec<u8>,
     }
@@ -474,6 +501,9 @@ mod backend {
         fn from(vbs: VsBackendSerde<T>) -> Self {
             Self {
                 data: vbs.data,
+                cache: SharedCache::new(CacheSize::new(vbs.cache_size)),
+                cache_size: vbs.cache_size,
+
                 hashed_null_key: H::hash(&vbs.original_null_key),
                 original_null_key: vbs.original_null_key,
                 null_node_data: T::from(&vbs.null_node_data),
@@ -489,6 +519,8 @@ mod backend {
         fn from(vb: &VsBackend<H, T>) -> Self {
             Self {
                 data: unsafe { vb.data.shadow() },
+                cache_size: vb.cache_size,
+
                 original_null_key: vb.original_null_key.clone(),
                 null_node_data: vb.null_node_data.as_ref().to_vec(),
             }
@@ -513,29 +545,5 @@ mod backend {
                 .c(d!())
                 .map(Self::from)
         }
-    }
-}
-
-pub mod cache {
-    use once_cell::sync::Lazy;
-    use sp_trie::cache::{CacheSize, SharedTrieCache};
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    const GB: usize = 1024 * 1024 * 1024;
-    const DEFAULT_SIZE: usize = 4 * GB;
-
-    static SIZE: AtomicUsize = AtomicUsize::new(0);
-
-    pub static GLOBAL_CACHE: Lazy<SharedTrieCache<blake3_hasher::Blake3Hasher>> =
-        Lazy::new(|| {
-            let mut size = SIZE.load(Ordering::SeqCst);
-            if 0 == size {
-                size = DEFAULT_SIZE;
-            }
-            SharedTrieCache::new(CacheSize::new(size))
-        });
-
-    pub fn set_trie_cache_size(size: usize) {
-        SIZE.store(size, Ordering::SeqCst);
     }
 }

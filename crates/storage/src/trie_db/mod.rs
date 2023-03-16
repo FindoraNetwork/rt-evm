@@ -12,7 +12,7 @@ use sp_trie::{
     },
     LayoutV1, Trie, TrieDBBuilder, TrieHash, TrieMut,
 };
-use std::ptr;
+use std::mem;
 use vsdb::basic::mapx_ord_rawkey::MapxOrdRawKey;
 
 #[derive(Default, Serialize, Deserialize)]
@@ -129,64 +129,39 @@ pub struct MptMut<'a> {
 
     // self-reference
     #[allow(dead_code)]
-    cache: Option<LayeredCache<'a>>,
-
-    // self-reference
-    #[allow(dead_code)]
-    root: *mut TrieRoot,
-}
-
-impl Drop for MptMut<'_> {
-    fn drop(&mut self) {
-        let me = self as *mut Self;
-        unsafe {
-            if let Some(c) = (*me).cache.as_ref() {
-                let mut tmp = (*c.local_cache).as_trie_db_mut_cache();
-                ptr::swap(&mut tmp, c.cache);
-                tmp.merge_into(&*c.local_cache, *self.root);
-            }
-        }
-    }
+    meta: MptMeta<'a>,
 }
 
 impl<'a> MptMut<'a> {
     // keep private !!
     pub fn new(backend: &'a mut TrieBackend) -> Self {
-        let cache = backend
-            .get_cache_hdr()
-            .map(|hdr| LayeredCache::new(hdr.local_cache(), None));
+        let lc = backend.get_cache_hdr().map(|hdr| hdr.local_cache());
+        let meta = MptMeta::new(lc, Default::default(), true);
 
-        let root_buf = Box::into_raw(Box::default());
-        let trie = TrieDBMutBuilder::new(backend, unsafe { &mut *root_buf })
+        let trie = TrieDBMutBuilder::new(backend, unsafe { &mut *meta.root })
             .with_optional_cache(
-                cache
+                meta.cache
                     .as_ref()
                     .map(|c| unsafe { &mut *c.cache } as &mut dyn sp_trie::TrieCache<_>),
             )
             .build();
 
-        Self {
-            trie,
-            cache,
-            root: root_buf,
-        }
+        Self { trie, meta }
     }
 
     pub fn from_existing(backend: &'a mut TrieBackend, root: MerkleRoot) -> Self {
-        let cache = backend
-            .get_cache_hdr()
-            .map(|hdr| LayeredCache::new(hdr.local_cache(), None));
+        let lc = backend.get_cache_hdr().map(|hdr| hdr.local_cache());
+        let meta = MptMeta::new(lc, root.to_fixed_bytes(), true);
 
-        let root = Box::into_raw(Box::new(root.to_fixed_bytes()));
-        let trie = TrieDBMutBuilder::from_existing(backend, unsafe { &mut *root })
+        let trie = TrieDBMutBuilder::from_existing(backend, unsafe { &mut *meta.root })
             .with_optional_cache(
-                cache
+                meta.cache
                     .as_ref()
                     .map(|c| unsafe { &mut *c.cache } as &mut dyn sp_trie::TrieCache<_>),
             )
             .build();
 
-        Self { trie, cache, root }
+        Self { trie, meta }
     }
 
     pub fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
@@ -221,31 +196,23 @@ pub struct MptRo<'a> {
 
     // self-reference
     #[allow(dead_code)]
-    cache: Option<LayeredCache<'a>>,
-
-    // self-reference
-    #[allow(dead_code)]
-    root: *mut TrieRoot,
+    meta: MptMeta<'a>,
 }
 
 impl<'a> MptRo<'a> {
     pub fn from_existing(backend: &'a TrieBackend, root: MerkleRoot) -> Self {
-        let root = root.to_fixed_bytes();
+        let lc = backend.get_cache_hdr().map(|hdr| hdr.local_cache());
+        let meta = MptMeta::new(lc, root.to_fixed_bytes(), false);
 
-        let cache = backend
-            .get_cache_hdr()
-            .map(|hdr| LayeredCache::new(hdr.local_cache(), Some(root)));
-
-        let root = Box::into_raw(Box::new(root));
-        let trie = TrieDBBuilder::new(backend, unsafe { &*root })
+        let trie = TrieDBBuilder::new(backend, unsafe { &*meta.root })
             .with_optional_cache(
-                cache
+                meta.cache
                     .as_ref()
                     .map(|c| unsafe { &mut *c.cache } as &mut dyn sp_trie::TrieCache<_>),
             )
             .build();
 
-        Self { trie, cache, root }
+        Self { trie, meta }
     }
 
     pub fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
@@ -258,6 +225,37 @@ impl<'a> MptRo<'a> {
 
     pub fn root(&mut self) -> MerkleRoot {
         self.trie.root().into()
+    }
+}
+
+struct MptMeta<'a> {
+    // self-reference
+    #[allow(dead_code)]
+    cache: Option<LayeredCache<'a>>,
+
+    // self-reference
+    #[allow(dead_code)]
+    root: *mut TrieRoot,
+}
+
+impl<'a> MptMeta<'a> {
+    fn new(lc: Option<LocalTrieCache<H>>, root: TrieRoot, mutable: bool) -> Self {
+        Self {
+            cache: lc.map(|lc| LayeredCache::new(lc, alt!(mutable, None, Some(root)))),
+            root: Box::into_raw(Box::new(root)),
+        }
+    }
+}
+
+// The raw pointers in `LayeredCache` will be dropped here
+impl Drop for MptMeta<'_> {
+    fn drop(&mut self) {
+        unsafe {
+            if let Some(c) = mem::take(&mut self.cache) {
+                Box::from_raw(c.cache)
+                    .merge_into(&Box::from_raw(c.local_cache), *self.root);
+            }
+        }
     }
 }
 

@@ -8,7 +8,7 @@ use moka::{
 use parking_lot::RwLock;
 use rt_evm_model::types::{Hash, SignedTransaction as SignedTx, H160};
 use ruc::*;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{cmp::Ordering, collections::HashMap, sync::Arc, time::Duration};
 
 pub use TinyMempool as Mempool;
 
@@ -141,7 +141,21 @@ impl TinyMempool {
             .map(|(_, tx)| tx)
             .collect::<Vec<_>>();
 
-        ret.sort_unstable_by_key(|tx| *tx.transaction.unsigned.nonce());
+        ret.sort_unstable_by(|a, b| {
+            let price_cmp = b
+                .transaction
+                .unsigned
+                .gas_price()
+                .cmp(&a.transaction.unsigned.gas_price());
+            if matches!(price_cmp, Ordering::Equal) {
+                a.transaction
+                    .unsigned
+                    .nonce()
+                    .cmp(b.transaction.unsigned.nonce())
+            } else {
+                price_cmp
+            }
+        });
 
         ret
     }

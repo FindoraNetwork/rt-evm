@@ -17,7 +17,7 @@ serde = { version = "1.0", features = ["derive"] }
 bcs = "0.1.5"
 
 # vsdb = { path = "../../vsdb/wrappers", features = ["extra_types"] }
-vsdb = { version = "0.50.2", features = ["extra_types"] }
+vsdb = { version = "0.51.1", features = ["extra_types"] }
 
 rt-evm-model = { path = "../model" }
 rt-evm-crypto = { path = "../utils/crypto" }

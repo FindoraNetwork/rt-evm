@@ -3,7 +3,7 @@ use rt_evm_model::{
     codec::ProtocolCodec,
     traits::{ApplyBackend, Backend, BlockStorage, ExecutorAdapter, TxStorage},
     types::{
-        Account, ExecutorContext, Hasher, Log, MerkleRoot, Proposal, GB, H160, H256, MB,
+        Account, ExecutorContext, Hasher, Log, MerkleRoot, Proposal, GB, H160, H256,
         NIL_DATA, RLP_NULL, U256,
     },
 };
@@ -230,7 +230,6 @@ impl<'a> RTEvmExecutorAdapter<'a> {
     pub const WORLD_STATE_META_KEY: [u8; 1] = [0];
 
     const WORLD_STATE_CACHE_SIZE: usize = 4 * GB;
-    const ACCOUNT_STATE_CACHE_SIZE: usize = 32 * MB;
 
     pub fn new(
         trie: &'a MptStore,
@@ -238,7 +237,10 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         exec_ctx: ExecutorContext,
     ) -> Result<Self> {
         let state = trie
-            .trie_create(&Self::WORLD_STATE_META_KEY, Self::WORLD_STATE_CACHE_SIZE)
+            .trie_create(
+                &Self::WORLD_STATE_META_KEY,
+                Some(Self::WORLD_STATE_CACHE_SIZE),
+            )
             .c(d!())?;
         Ok(RTEvmExecutorAdapter {
             state,
@@ -291,10 +293,7 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         };
 
         let mut storage_trie = if storage_root == RLP_NULL {
-            pnk!(
-                self.trie
-                    .trie_create(address.as_bytes(), Self::ACCOUNT_STATE_CACHE_SIZE)
-            )
+            pnk!(self.trie.trie_create(address.as_bytes(), None))
         } else {
             pnk!(
                 self.trie

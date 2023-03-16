@@ -2,6 +2,8 @@
 //! A pre-built simple entry to the `rt-evm` development framework.
 //!
 
+#![cfg_attr(feature = "benchmark", allow(warnings))]
+
 pub use rt_evm_api as api;
 pub use rt_evm_blockmgmt as blockmgmt;
 pub use rt_evm_executor as executor;

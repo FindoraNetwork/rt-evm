@@ -30,6 +30,21 @@ pub struct TxResp {
     pub removed: bool,
 }
 
+impl TxResp {
+    pub fn invalid_nonce(gas_used: u64, fee_cost: U256) -> Self {
+        TxResp {
+            exit_reason: ExitReason::Error(ExitError::Other("invalid nonce".into())),
+            gas_used,
+            remain_gas: u64::default(),
+            fee_cost,
+            removed: false,
+            ret: vec![],
+            logs: vec![],
+            code_address: None,
+        }
+    }
+}
+
 impl Default for TxResp {
     fn default() -> Self {
         TxResp {

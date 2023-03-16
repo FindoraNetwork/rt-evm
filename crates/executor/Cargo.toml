@@ -20,3 +20,8 @@ rt-evm-crypto = { path = "../utils/crypto" }
 rt-evm-storage = { path = "../storage" }
 
 [dev-dependencies]
+
+[features]
+default = []
+
+benchmark = []

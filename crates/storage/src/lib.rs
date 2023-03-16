@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "benchmark", allow(warnings))]
+
 pub mod trie_db;
 
 pub use trie_db::MptStore;
@@ -5,6 +7,7 @@ pub use FunStorage as Storage;
 
 use moka::sync::Cache as Lru;
 use parking_lot::RwLock;
+use rayon::prelude::*;
 use rt_evm_model::{
     traits::{BlockStorage, TxStorage},
     types::{
@@ -40,7 +43,7 @@ impl FunStorage {
         hashes: &[Hash],
     ) -> Vec<Option<(BlockNumber, SignedTransaction)>> {
         hashes
-            .iter()
+            .par_iter()
             .map(|txh| {
                 self.cache
                     .transactions

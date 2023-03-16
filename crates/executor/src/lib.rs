@@ -1,3 +1,4 @@
+#![cfg_attr(feature = "benchmark", allow(warnings))]
 #![allow(clippy::uninlined_format_args, clippy::box_default)]
 
 pub mod adapter;
@@ -24,7 +25,7 @@ use rt_evm_model::{
     types::{
         data_gas_cost, Account, Config, ExecResp, Hasher, SignedTransaction,
         TransactionAction, TxResp, GAS_CALL_TRANSACTION, GAS_CREATE_TRANSACTION, H160,
-        NIL_DATA, RLP_NULL, U256,
+        MIN_TRANSACTION_GAS_LIMIT, NIL_DATA, RLP_NULL, U256,
     },
 };
 use std::collections::BTreeMap;
@@ -174,13 +175,22 @@ impl RTEvmExecutor {
         let sender = tx.sender;
         let tx_gas_price = backend.gas_price();
         let gas_limit = tx.transaction.unsigned.gas_limit();
-        let prepay_gas = tx_gas_price * gas_limit;
+        let prepay_gas = tx_gas_price.saturating_mul(*gas_limit);
 
         let mut account = backend.get_account(&sender);
+
+        let old_nonce = account.nonce;
+
+        #[cfg(not(feature = "benchmark"))]
+        if tx.transaction.unsigned.nonce() != &(old_nonce + 1) {
+            let fee_cost = tx_gas_price.saturating_mul(MIN_TRANSACTION_GAS_LIMIT.into());
+            account.balance = account.balance.saturating_sub(fee_cost);
+            backend.save_account(&sender, &account);
+            return TxResp::invalid_nonce(MIN_TRANSACTION_GAS_LIMIT, fee_cost);
+        }
+
         account.balance = account.balance.saturating_sub(prepay_gas);
         backend.save_account(&sender, &account);
-
-        let old_nonce = backend.basic(tx.sender).nonce;
 
         let metadata = StackSubstateMetadata::new(gas_limit.as_u64(), config);
         let mut executor = StackExecutor::new_with_precompiles(
@@ -252,9 +262,7 @@ impl RTEvmExecutor {
             ret: res,
             remain_gas: remained_gas,
             gas_used: used_gas,
-            fee_cost: tx_gas_price
-                .checked_mul(used_gas.into())
-                .unwrap_or(U256::max_value()),
+            fee_cost: tx_gas_price.saturating_mul(used_gas.into()),
             logs: vec![],
             code_address: code_addr,
             removed: false,

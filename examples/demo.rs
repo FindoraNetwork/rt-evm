@@ -1,6 +1,5 @@
 use rt_evm::{
     api::{set_node_sync_status, SyncStatus},
-    model::traits::BlockStorage,
     Address, EvmRuntime, TokenDistributon,
 };
 use ruc::*;
@@ -79,13 +78,6 @@ impl Config {
 
             let header = producer.produce_block(txs.clone()).c(d!())?;
             dbg!(&header);
-
-            evm_rt
-                .storage_handler()
-                .get_fatblock(header.number)
-                .c(d!())?
-                .c(d!())
-                .and_then(|fb| producer.verify_block(&fb).c(d!()))?;
         }
     }
 }

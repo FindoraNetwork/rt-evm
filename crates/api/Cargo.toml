@@ -22,3 +22,8 @@ rt-evm-storage = { path = "../storage" }
 [dev-dependencies]
 fastrand = "1.8"
 json = "0.12"
+
+[features]
+default = []
+
+benchmark = []

@@ -34,3 +34,8 @@ tokio = "1.26"
 [[example]]
 name = "demo"
 crate-type = ["bin"]
+
+[features]
+default = []
+
+benchmark = ["rt-evm-api/benchmark", "rt-evm-executor/benchmark"]

@@ -71,6 +71,7 @@ impl<Adapter: APIAdapter> Web3RpcImpl<Adapter> {
 
 #[async_trait]
 impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> {
+    #[cfg(not(feature = "benchmark"))]
     async fn send_raw_transaction(&self, tx: Hex) -> RpcResult<H256> {
         let utx = UnverifiedTransaction::decode(&tx.as_bytes())
             .map_err(|e| Error::Custom(e.to_string()))?;
@@ -102,6 +103,39 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         }
 
         utx.check_hash().map_err(|e| Error::Custom(e.to_string()))?;
+
+        let stx = SignedTransaction::try_from(utx)
+            .map_err(|e| Error::Custom(e.to_string()))?;
+        let hash = stx.transaction.hash;
+
+        let acc = self
+            .adapter
+            .get_account(stx.sender, None)
+            .await
+            .map_err(|e| Error::Custom(e.to_string()))?;
+
+        if &acc.nonce >= stx.transaction.unsigned.nonce() {
+            return Err(Error::Custom("Invalid nonce".to_owned()));
+        }
+
+        if acc.balance < gas_price.saturating_mul(MIN_TRANSACTION_GAS_LIMIT.into()) {
+            return Err(Error::Custom(
+                "Insufficient balance to cover possible gas".to_owned(),
+            ));
+        }
+
+        self.adapter
+            .insert_signed_tx(stx)
+            .await
+            .map_err(|e| Error::Custom(e.to_string()))?;
+
+        Ok(hash)
+    }
+
+    #[cfg(feature = "benchmark")]
+    async fn send_raw_transaction(&self, tx: Hex) -> RpcResult<H256> {
+        let utx = UnverifiedTransaction::decode(&tx.as_bytes())
+            .map_err(|e| Error::Custom(e.to_string()))?;
 
         let stx = SignedTransaction::try_from(utx)
             .map_err(|e| Error::Custom(e.to_string()))?;

@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "benchmark", allow(warnings))]
+
 use crossbeam_queue::ArrayQueue;
 use moka::{
     notification::{ConfigurationBuilder, DeliveryMode, RemovalCause},

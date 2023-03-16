@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "benchmark", allow(warnings))]
+
 pub mod adapter;
 pub mod jsonrpc;
 

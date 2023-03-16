@@ -58,7 +58,7 @@ impl EvmRuntime {
             chain_id,
             trie: Arc::new(t),
             storage: Arc::new(s),
-            mempool: Arc::new(Mempool::default()),
+            mempool: Mempool::new_default(),
         }
     }
 

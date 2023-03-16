@@ -1,96 +1,162 @@
 #![cfg_attr(feature = "benchmark", allow(warnings))]
 
 use crossbeam_queue::ArrayQueue;
-use moka::{
-    notification::{ConfigurationBuilder, DeliveryMode, RemovalCause},
-    sync::{Cache, CacheBuilder},
-};
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use rt_evm_model::types::{Hash, SignedTransaction as SignedTx, H160};
 use ruc::*;
-use std::{cmp::Ordering, collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, HashMap},
+    mem,
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering as AtoOrd},
+        Arc,
+    },
+    thread,
+};
+
+// decrease from u64::MAX
+static TX_INDEXER: AtomicU64 = AtomicU64::new(u64::MAX);
 
 pub use TinyMempool as Mempool;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TinyMempool {
-    txs: Cache<Hash, SignedTx>,
+    // if number of tx exceed the capacity, deny new txs
+    //
+    // NOTE: lock order number is 1
+    txs: Arc<Mutex<BTreeMap<u64, SignedTx>>>,
+
+    // key: <timestamp of tx> % <lifetime limitation>
+    // value: the index of tx in `txs`
+    //
+    // discard_guard = tx_lifetime_fields.split_off(ts!() % <lifetime limitation> - 2)
+    //
+    // min_tx_index_to_discard = discard_gurad.pop_last().1
+    // txs_to_discard = txs.split_off(min_tx_index_to_discard)
+    //
+    // decrease pending cnter based on txs_to_discard
+    //
+    tx_lifetime_fields: Arc<Mutex<BTreeMap<u64, u64>>>,
 
     // record transactions that need to be broadcasted
-    broadcast_queue: ArrayQueue<Hash>,
+    broadcast_queue: Arc<ArrayQueue<u64>>,
 
     // pending transactions of each account
-    address_pending_cnter: Arc<RwLock<HashMap<H160, u64>>>,
+    //
+    // NOTE: lock order number is 0
+    address_pending_cnter: Arc<RwLock<HashMap<H160, HashMap<Hash, u64>>>>,
+
+    // if `true`, the background thread will exit itself.
+    stop_cleaner: Arc<AtomicBool>,
 
     // set once, and then immutable forever
     capacity: u64,
+    tx_lifetime_in_secs: u64,
 }
 
 unsafe impl Sync for TinyMempool {}
 unsafe impl Send for TinyMempool {}
 
-impl Default for TinyMempool {
-    fn default() -> Self {
-        // at most 10 minutes for a tx to be alive in mempool,
-        // either to be confirmed, or to be discarded
-        Self::new(10_0000, 500)
-    }
-}
-
 impl TinyMempool {
-    pub fn new(capacity: u64, tx_lifetime_in_secs: u64) -> Self {
+    // At most 10 minutes for a tx to be alive in mempool,
+    // either to be confirmed, or to be discarded
+    pub fn new_default() -> Arc<Self> {
+        Self::new(10_0000, 600)
+    }
+
+    pub fn new(capacity: u64, tx_lifetime_in_secs: u64) -> Arc<Self> {
         let address_pending_cnter = Arc::new(RwLock::new(map! {}));
 
-        let cnter = Arc::clone(&address_pending_cnter);
-        let listener = move |_: Arc<Hash>, tx: SignedTx, _: RemovalCause| {
-            let mut cnter = cnter.write();
-            if let Some(cnt) = cnter.get_mut(&tx.sender) {
-                if 2 > *cnt {
-                    cnter.remove(&tx.sender);
-                } else {
-                    *cnt -= 1;
-                }
-            }
-        };
-        let listener_conf = ConfigurationBuilder::default()
-            .delivery_mode(DeliveryMode::Queued)
-            .build();
-
-        Self {
-            txs: CacheBuilder::new(capacity)
-                .time_to_live(Duration::from_secs(tx_lifetime_in_secs))
-                .eviction_listener_with_conf(listener, listener_conf)
-                .build(),
-            broadcast_queue: ArrayQueue::new(capacity as usize),
+        let ret = Self {
+            txs: Arc::new(Mutex::new(BTreeMap::new())),
+            tx_lifetime_fields: Arc::new(Mutex::new(BTreeMap::new())),
+            broadcast_queue: Arc::new(ArrayQueue::new(capacity as usize)),
             address_pending_cnter,
+            stop_cleaner: Arc::new(AtomicBool::new(false)),
             capacity,
-        }
+            tx_lifetime_in_secs,
+        };
+        let ret = Arc::new(ret);
+
+        let hdr_ret = Arc::clone(&ret);
+        thread::spawn(move || {
+            loop {
+                sleep_ms!(tx_lifetime_in_secs * 1000);
+
+                if hdr_ret.stop_cleaner.load(AtoOrd::Relaxed) {
+                    return;
+                }
+
+                let mut ts_guard = ts!() % tx_lifetime_in_secs;
+                alt!(3 > ts_guard, continue);
+                ts_guard -= 2;
+
+                let mut to_discard =
+                    if let Some(mut tlf) = hdr_ret.tx_lifetime_fields.try_lock() {
+                        let mut to_keep = tlf.split_off(&ts_guard);
+                        mem::swap(&mut to_keep, &mut tlf);
+                        to_keep // now is 'to_discard'
+                    } else {
+                        continue;
+                    };
+
+                let idx_gurad = if let Some((_, idx)) = to_discard.pop_last() {
+                    idx
+                } else {
+                    continue;
+                };
+
+                // For avoiding 'dead lock',
+                // we call `collect` and then `iter` again
+                let to_del = hdr_ret
+                    .txs
+                    .lock()
+                    .split_off(&idx_gurad)
+                    .into_values()
+                    .collect::<Vec<_>>();
+                let mut pending_cnter = hdr_ret.address_pending_cnter.write();
+                to_del.iter().for_each(|tx| {
+                    if let Some(i) = pending_cnter.get_mut(&tx.sender) {
+                        i.remove(&tx.transaction.hash);
+                    }
+                });
+            }
+        });
+
+        ret
     }
 
-    // add a new transaction to mempool
+    // Add a new transaction to mempool
     pub fn tx_insert(&self, tx: SignedTx) -> Result<()> {
         if self.tx_pending_cnt(None) >= self.capacity {
             return Err(eg!("mempool is full"));
         }
 
+        let idx = TX_INDEXER.fetch_sub(1, AtoOrd::Relaxed);
+
         self.broadcast_queue
-            .push(tx.transaction.hash)
+            .push(idx)
             .map_err(|e| eg!("{}: mempool is full", e))?;
 
-        *self
-            .address_pending_cnter
+        self.address_pending_cnter
             .write()
             .entry(tx.sender)
-            .or_insert(0) += 1;
+            .or_insert(map! {})
+            .insert(tx.transaction.hash, idx);
 
-        self.txs.insert(tx.transaction.hash, tx);
+        self.tx_lifetime_fields
+            .lock()
+            .insert(ts!() % self.tx_lifetime_in_secs, idx);
+
+        self.txs.lock().insert(idx, tx);
 
         Ok(())
     }
 
     // add some new transactions to mempool
     pub fn tx_insert_batch(&self, txs: Vec<SignedTx>) -> Result<()> {
-        if self.tx_pending_cnt(None) + txs.len() as u64 >= self.capacity {
+        if self.tx_pending_cnt(None) + (txs.len() as u64) >= self.capacity {
             return Err(eg!("mempool will be full after this batch"));
         }
 
@@ -107,10 +173,10 @@ impl TinyMempool {
             self.address_pending_cnter
                 .read()
                 .get(&addr)
-                .copied()
+                .map(|i| i.len() as u64)
                 .unwrap_or_default()
         } else {
-            self.txs.entry_count()
+            self.txs.lock().len() as u64
         }
     }
 
@@ -118,10 +184,11 @@ impl TinyMempool {
     pub fn tx_take_broadcast(&self, mut limit: u64) -> Vec<SignedTx> {
         let mut ret = vec![];
 
+        let hdr = self.txs.lock();
         while limit > 0 {
             if let Some(h) = self.broadcast_queue.pop() {
-                if let Some(tx) = self.txs.get(&h) {
-                    ret.push(tx);
+                if let Some(tx) = hdr.get(&h) {
+                    ret.push(tx.clone());
                     limit -= 1;
                 }
             } else {
@@ -133,12 +200,14 @@ impl TinyMempool {
     }
 
     // package some transactions for proposing a new block ?
-    pub fn tx_take_propose(&self, limit: u64) -> Vec<SignedTx> {
+    pub fn tx_take_propose(&self, limit: usize) -> Vec<SignedTx> {
         let mut ret = self
             .txs
+            .lock()
             .iter()
-            .take(limit as usize)
-            .map(|(_, tx)| tx)
+            .rev()
+            .take(limit)
+            .map(|(_, tx)| tx.clone())
             .collect::<Vec<_>>();
 
         ret.sort_unstable_by(|a, b| {
@@ -160,11 +229,16 @@ impl TinyMempool {
         ret
     }
 
-    // remove transactions after they have been confirmed ?
-    pub fn tx_cleanup(&self, tx_hashes: &[Hash]) {
-        tx_hashes.iter().for_each(|h| {
-            // the registered listener will decrease the pending cnter automatically
-            self.txs.invalidate(h);
+    // Remove transactions after they have been confirmed ?
+    pub fn tx_cleanup(&self, to_del: &[SignedTx]) {
+        let mut pending_cnter = self.address_pending_cnter.write();
+        let mut txs = self.txs.lock();
+        to_del.iter().for_each(|tx| {
+            if let Some(i) = pending_cnter.get_mut(&tx.sender) {
+                if let Some(idx) = i.remove(&tx.transaction.hash) {
+                    txs.remove(&idx);
+                }
+            }
         });
     }
 }

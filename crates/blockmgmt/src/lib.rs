@@ -93,7 +93,7 @@ impl BlockMgmt {
         .c(d!())?;
         let exec_resp = Executor.exec(&mut evm_exec_backend, txs);
 
-        self.mempool.tx_cleanup(&proposal.tx_hashes);
+        self.mempool.tx_cleanup(txs);
 
         let block = Block::new(proposal, &exec_resp);
         let receipts = generate_receipts(

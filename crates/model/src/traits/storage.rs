@@ -58,4 +58,4 @@ pub trait TxStorage {
 
 pub trait Storage: BlockStorage + TxStorage {}
 
-impl<T> Storage for T where T: BlockStorage + TxStorage {}
+impl<T: BlockStorage + TxStorage> Storage for T {}

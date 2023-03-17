@@ -43,6 +43,7 @@ pub struct BlockMgmt {
 impl BlockMgmt {
     pub fn new(
         proposer: H160,
+        timestamp: u64,
         mempool: Arc<Mempool>,
         trie: Arc<MptStore>,
         storage: Arc<Storage>,
@@ -53,7 +54,7 @@ impl BlockMgmt {
             prev_block_hash: latest_block_header.hash(),
             prev_state_root: latest_block_header.state_root,
             block_number: 1 + latest_block_header.number,
-            block_timestamp: ts!(),
+            block_timestamp: timestamp,
             chain_id: latest_block_header.chain_id,
             mempool,
             trie,

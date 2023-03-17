@@ -175,9 +175,14 @@ impl EvmRuntime {
         Arc::clone(&self.storage)
     }
 
-    pub fn generate_blockproducer(&self, proposer: H160) -> Result<BlockMgmt> {
+    pub fn generate_blockproducer(
+        &self,
+        proposer: H160,
+        timestamp: u64,
+    ) -> Result<BlockMgmt> {
         BlockMgmt::new(
             proposer,
+            timestamp,
             self.copy_mempool_handler(),
             self.copy_trie_handler(),
             self.copy_storage_handler(),

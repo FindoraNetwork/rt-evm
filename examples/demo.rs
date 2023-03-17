@@ -71,7 +71,9 @@ impl Config {
             // https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_syncing
             set_node_sync_status(SyncStatus::default());
 
-            let producer = evm_rt.generate_blockproducer(select_proposer()).c(d!())?;
+            let producer = evm_rt
+                .generate_blockproducer(select_proposer(), ts!())
+                .c(d!())?;
 
             // take at most 1000 transactions to propose a new block
             let txs = evm_rt.mempool_handler().tx_take_propose(1000);

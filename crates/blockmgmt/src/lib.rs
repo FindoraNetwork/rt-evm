@@ -122,9 +122,6 @@ impl BlockMgmt {
             tx_hashes: txs.iter().map(|tx| tx.transaction.hash).collect(),
         };
 
-        #[cfg(not(feature = "benchmark"))]
-        self.verify_proposal(&p, txs).c(d!())?;
-
         Ok(p)
     }
 

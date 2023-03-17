@@ -1,6 +1,5 @@
 #![cfg_attr(feature = "benchmark", allow(warnings))]
 
-use crossbeam_queue::ArrayQueue;
 use parking_lot::{Mutex, RwLock};
 use rt_evm_model::types::{Hash, SignedTransaction as SignedTx, H160};
 use ruc::*;
@@ -40,7 +39,7 @@ pub struct TinyMempool {
     tx_lifetime_fields: Arc<Mutex<BTreeMap<u64, u64>>>,
 
     // record transactions that need to be broadcasted
-    broadcast_queue: Arc<ArrayQueue<u64>>,
+    broadcast_queue: Arc<Mutex<Vec<SignedTx>>>,
 
     // pending transactions of each account
     //
@@ -71,7 +70,7 @@ impl TinyMempool {
         let ret = Self {
             txs: Arc::new(Mutex::new(BTreeMap::new())),
             tx_lifetime_fields: Arc::new(Mutex::new(BTreeMap::new())),
-            broadcast_queue: Arc::new(ArrayQueue::new(capacity as usize)),
+            broadcast_queue: Arc::new(Mutex::new(vec![])),
             address_pending_cnter,
             stop_cleaner: Arc::new(AtomicBool::new(false)),
             capacity,
@@ -129,15 +128,13 @@ impl TinyMempool {
 
     // Add a new transaction to mempool
     pub fn tx_insert(&self, tx: SignedTx) -> Result<()> {
-        if self.tx_pending_cnt(None) >= self.capacity {
+        if self.tx_pending_cnt(None) > self.capacity {
             return Err(eg!("mempool is full"));
         }
 
-        let idx = TX_INDEXER.fetch_sub(1, AtoOrd::Relaxed);
+        self.broadcast_queue.lock().push(tx.clone());
 
-        self.broadcast_queue
-            .push(idx)
-            .map_err(|e| eg!("{}: mempool is full", e))?;
+        let idx = TX_INDEXER.fetch_sub(1, AtoOrd::Relaxed);
 
         self.address_pending_cnter
             .write()
@@ -181,22 +178,8 @@ impl TinyMempool {
     }
 
     // broadcast transactions to other nodes ?
-    pub fn tx_take_broadcast(&self, mut limit: u64) -> Vec<SignedTx> {
-        let mut ret = vec![];
-
-        let hdr = self.txs.lock();
-        while limit > 0 {
-            if let Some(h) = self.broadcast_queue.pop() {
-                if let Some(tx) = hdr.get(&h) {
-                    ret.push(tx.clone());
-                    limit -= 1;
-                }
-            } else {
-                break;
-            }
-        }
-
-        ret
+    pub fn tx_take_broadcast(&self) -> Vec<SignedTx> {
+        mem::take(&mut *self.broadcast_queue.lock())
     }
 
     // package some transactions for proposing a new block ?

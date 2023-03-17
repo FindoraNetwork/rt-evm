@@ -1,7 +1,6 @@
 pub use ethereum::Log;
 
 pub use block::*;
-pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 pub use evm::{backend::*, ExitError, ExitRevert, ExitSucceed};
 pub use executor::{
     AccessList, AccessListItem, Account, Config, ExecResp, ExecutorContext, ExitReason,

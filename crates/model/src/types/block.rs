@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::codec::ProtocolCodec;
 use crate::types::{
     Bloom, BloomInput, Bytes, ExecResp, Hash, Hasher, MerkleRoot, SignedTransaction,
-    H160, H64, RLP_NULL, U256,
+    H160, H64, NIL_HASH, U256,
 };
 
 pub type BlockNumber = u64;
@@ -137,8 +137,8 @@ impl Block {
             prev_hash: Default::default(),
             proposer: Default::default(),
             state_root: Default::default(),
-            transactions_root: RLP_NULL,
-            receipts_root: RLP_NULL,
+            transactions_root: NIL_HASH,
+            receipts_root: NIL_HASH,
             log_bloom: Bloom::default(),
             difficulty: U256::one(),
             timestamp: ruc::ts!(),

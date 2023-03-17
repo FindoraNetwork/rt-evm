@@ -1,7 +1,6 @@
 mod backend;
 
-use backend::TrieBackend;
-use blake3_hasher::Blake3Hasher as H;
+use backend::{KeccakHasher as H, TrieBackend};
 use rt_evm_model::types::MerkleRoot;
 use ruc::*;
 use serde::{Deserialize, Serialize};

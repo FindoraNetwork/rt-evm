@@ -69,6 +69,6 @@ impl RTEvmNodeRpcServer for NodeRpcImpl {
     fn sha3(&self, data: Hex) -> RpcResult<Hash> {
         let decode_data =
             Hex::decode(data.as_string()).map_err(|e| Error::Custom(e.to_string()))?;
-        Ok(Hasher::digest(decode_data.as_ref()))
+        Ok(Hasher::digest(decode_data))
     }
 }

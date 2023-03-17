@@ -1,33 +1,26 @@
+use super::TypesError;
 use crate::codec::{hex_decode, hex_encode};
-use crate::types::{Bytes, TypesError};
 pub use ethereum_types::{
     BigEndianHash, Bloom, Public, Secret, Signature, H128, H160, H256, H512, H520, H64,
     U128, U256, U512, U64,
 };
+use hash_db::Hasher as _;
+use keccak_hasher::KeccakHasher;
 use ophelia::{PublicKey, UncompressedPublicKey};
 use ophelia_secp256k1::Secp256k1PublicKey;
 use ruc::*;
 use serde::{de, Deserialize, Serialize};
 use std::{fmt, result::Result as StdResult, str::FromStr};
-use tiny_keccak::{Hasher as _, Keccak};
 
 pub struct Hasher;
 
 impl Hasher {
     pub fn digest(data: impl AsRef<[u8]>) -> Hash {
-        if data.as_ref().is_empty() {
-            return NIL_DATA;
-        }
-
-        let mut res: [u8; 32] = [0; 32];
-
-        let mut hasher = Keccak::v256();
-        hasher.update(data.as_ref());
-        hasher.finalize(&mut res);
-
-        Hash::from(res)
+        Hash::from(KeccakHasher::hash(data.as_ref()))
     }
 }
+
+pub type Bytes = Vec<u8>;
 
 pub type Hash = H256;
 pub type MerkleRoot = Hash;
@@ -36,8 +29,13 @@ const ADDRESS_LEN: usize = 20;
 const HEX_PREFIX: &str = "0x";
 const HEX_PREFIX_UPPER: &str = "0X";
 
-pub const NIL_DATA: H256 = H256::zero();
-pub const RLP_NULL: H256 = H256::zero();
+// hash(&[])
+pub const NIL_DATA: H256 = H256([
+    197, 210, 70, 1, 134, 247, 35, 60, 146, 126, 125, 178, 220, 199, 3, 192, 229, 0,
+    182, 83, 202, 130, 39, 59, 123, 250, 216, 4, 93, 133, 164, 112,
+]);
+
+pub const NIL_HASH: H256 = NIL_DATA;
 
 pub const KB: usize = 1024;
 pub const MB: usize = 1024 * KB;
@@ -78,7 +76,7 @@ impl Hex {
             s.as_str()
         };
 
-        Ok(Bytes::from(hex_decode(s)?))
+        hex_decode(s).c(d!())
     }
 
     pub fn from_string(s: String) -> Result<Self> {
@@ -101,10 +99,7 @@ impl Hex {
     }
 
     pub fn as_bytes(&self) -> Bytes {
-        Bytes::from(
-            hex_decode(&self.0[2..])
-                .expect("impossible, already checked in from_string"),
-        )
+        hex_decode(&self.0[2..]).expect("impossible, already checked in from_string")
     }
 
     fn is_prefixed(s: &str) -> bool {
@@ -212,7 +207,7 @@ impl Address {
 
     pub fn from_bytes(bytes: Bytes) -> Result<Self> {
         ensure_len(bytes.len(), ADDRESS_LEN)?;
-        Ok(Self(H160::from_slice(&bytes.as_ref()[0..20])))
+        Ok(Self(H160::from_slice(&bytes[0..20])))
     }
 
     pub fn as_slice(&self) -> &[u8] {
@@ -221,8 +216,7 @@ impl Address {
 
     pub fn from_hex(s: &str) -> Result<Self> {
         let s = clean_0x(s)?;
-        let bytes = Bytes::from(hex_decode(s)?);
-        Self::from_bytes(bytes)
+        Self::from_bytes(hex_decode(s)?)
     }
 
     pub fn eip55(&self) -> String {
@@ -331,6 +325,7 @@ mod tests {
     fn test_hash_empty() {
         let bytes = Hex::empty();
         let hash = Hasher::digest(bytes.as_bytes());
+        // println!("{:?}", Hasher::digest([]).as_bytes());
         assert_eq!(hash, NIL_DATA);
     }
 }

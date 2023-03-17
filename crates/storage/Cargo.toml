@@ -11,7 +11,7 @@ rayon = "1.7.0"
 
 sp-trie = "19.0.0"
 hash-db = "0.15.2"
-blake3-hasher = "0.1.0"
+keccak-hasher = "0.15.3"
 
 moka = "0.10.0"
 serde = { version = "1.0", features = ["derive"] }

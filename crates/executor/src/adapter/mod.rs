@@ -4,7 +4,7 @@ use rt_evm_model::{
     traits::{ApplyBackend, Backend, BlockStorage, ExecutorAdapter, TxStorage},
     types::{
         Account, ExecutorContext, Hasher, Log, MerkleRoot, Proposal, GB, H160, H256,
-        NIL_DATA, RLP_NULL, U256,
+        NIL_DATA, NIL_HASH, U256,
     },
 };
 use rt_evm_storage::{
@@ -59,7 +59,7 @@ impl<'a> ExecutorAdapter for RTEvmExecutorAdapter<'a> {
         Account {
             nonce: U256::zero(),
             balance: U256::zero(),
-            storage_root: RLP_NULL,
+            storage_root: NIL_HASH,
             code_hash: NIL_DATA,
         }
     }
@@ -94,7 +94,7 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
         }
 
         let number = number.as_u64();
-        let res = self.storage.get_block(number).unwrap();
+        let res = pnk!(self.storage.get_block(number));
 
         res.map(|b| Proposal::from(&b).hash()).unwrap_or_default()
     }
@@ -146,9 +146,8 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
     }
 
     fn code(&self, address: H160) -> Vec<u8> {
-        let code_hash = if let Some(bytes) = self.state.get(address.as_bytes()).unwrap()
-        {
-            Account::decode(bytes).unwrap().code_hash
+        let code_hash = if let Some(bytes) = pnk!(self.state.get(address.as_bytes())) {
+            pnk!(Account::decode(bytes)).code_hash
         } else {
             return Vec::new();
         };
@@ -157,7 +156,7 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
             return Vec::new();
         }
 
-        let res = self.storage.get_code_by_hash(&code_hash).unwrap();
+        let res = pnk!(self.storage.get_code_by_hash(&code_hash));
 
         res.unwrap_or_default()
     }
@@ -171,7 +170,7 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
             Account::decode(raw.unwrap())
                 .and_then(|account| {
                     let storage_root = account.storage_root;
-                    if storage_root == RLP_NULL {
+                    if storage_root == NIL_HASH {
                         Ok(H256::default())
                     } else {
                         self.trie
@@ -213,7 +212,7 @@ impl<'a> ApplyBackend for RTEvmExecutorAdapter<'a> {
                     let is_empty =
                         self.apply(address, basic, code, storage, reset_storage);
                     if is_empty && delete_empty {
-                        self.state.remove(address.as_bytes()).unwrap();
+                        pnk!(self.state.remove(address.as_bytes()));
                     }
                 }
                 Apply::Delete { address } => {
@@ -277,22 +276,22 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         reset_storage: bool,
     ) -> bool {
         let old_account = match self.state.get(address.as_bytes()) {
-            Ok(Some(raw)) => Account::decode(raw).unwrap(),
+            Ok(Some(raw)) => pnk!(Account::decode(raw)),
             _ => Account {
                 nonce: U256::zero(),
                 balance: U256::zero(),
-                storage_root: RLP_NULL,
+                storage_root: NIL_HASH,
                 code_hash: NIL_DATA,
             },
         };
 
         let storage_root = if reset_storage {
-            RLP_NULL
+            NIL_HASH
         } else {
             old_account.storage_root
         };
 
-        let mut storage_trie = if storage_root == RLP_NULL {
+        let mut storage_trie = if storage_root == NIL_HASH {
             pnk!(self.trie.trie_create(address.as_bytes(), None))
         } else {
             pnk!(
@@ -315,20 +314,14 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         if let Some(c) = code {
             let new_code_hash = Hasher::digest(&c);
             if new_code_hash != old_account.code_hash {
-                self.storage
-                    .insert_code(address.into(), new_code_hash, c)
-                    .unwrap();
+                pnk!(self.storage.insert_code(address.into(), new_code_hash, c));
                 new_account.code_hash = new_code_hash;
             }
         }
 
-        let bytes = new_account.encode().unwrap();
+        let bytes = pnk!(new_account.encode());
 
-        {
-            self.state
-                .insert(address.as_bytes(), bytes.as_ref())
-                .unwrap();
-        }
+        pnk!(self.state.insert(address.as_bytes(), bytes.as_ref()));
 
         new_account.balance == U256::zero()
             && new_account.nonce == U256::zero()

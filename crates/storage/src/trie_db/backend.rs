@@ -1,14 +1,17 @@
 use hash_db::{AsHashDB, HashDB, HashDBRef, Hasher as KeyHasher, Prefix};
+use rt_evm_model::types::H256;
 use ruc::*;
 use serde::{Deserialize, Serialize};
 use sp_trie::cache::{CacheSize, SharedTrieCache};
 use vsdb::{basic::mapx_ord_rawkey::MapxOrdRawKey as Map, RawBytes, ValueEnDe};
 
+pub use keccak_hasher::KeccakHasher;
+
 const GB: usize = 1024 * 1024 * 1024;
 const DEFAULT_SIZE: CacheSize = CacheSize::new(GB);
 
-pub type TrieBackend = VsBackend<blake3_hasher::Blake3Hasher, Vec<u8>>;
-type SharedCache = SharedTrieCache<blake3_hasher::Blake3Hasher>;
+pub type TrieBackend = VsBackend<KeccakHasher, Vec<u8>>;
+type SharedCache = SharedTrieCache<KeccakHasher>;
 
 pub trait TrieVar: AsRef<[u8]> + for<'a> From<&'a [u8]> {}
 
@@ -34,7 +37,11 @@ where
 {
     /// Create a new `VsBackend` from the default null key/data
     pub fn new(cache_size: Option<usize>) -> Self {
-        Self::from_null_node(&[0u8][..], (&[0u8][..]).into(), cache_size)
+        Self::from_null_node(
+            H256::zero().as_bytes(),
+            H256::zero().as_bytes().into(),
+            cache_size,
+        )
     }
 
     /// Create a new `VsBackend` from a given null key/data
@@ -272,5 +279,14 @@ where
         bcs::from_bytes::<VsBackendSerde<T>>(bytes)
             .c(d!())
             .map(Self::from)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn print_null_value() {
+        // use super::*;
+        // println!("{:?}", KeccakHasher::hash(&[]));
     }
 }

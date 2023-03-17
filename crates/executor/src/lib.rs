@@ -1,3 +1,4 @@
+#![deny(warnings)]
 #![cfg_attr(feature = "benchmark", allow(warnings))]
 #![allow(clippy::uninlined_format_args, clippy::box_default)]
 
@@ -25,7 +26,7 @@ use rt_evm_model::{
     types::{
         data_gas_cost, Account, Config, ExecResp, Hasher, SignedTransaction,
         TransactionAction, TxResp, GAS_CALL_TRANSACTION, GAS_CREATE_TRANSACTION, H160,
-        MIN_TRANSACTION_GAS_LIMIT, NIL_DATA, RLP_NULL, U256,
+        MIN_TRANSACTION_GAS_LIMIT, NIL_DATA, NIL_HASH, U256,
     },
 };
 use std::collections::BTreeMap;
@@ -157,7 +158,7 @@ impl Executor for RTEvmExecutor {
             None => Account {
                 nonce: Default::default(),
                 balance: Default::default(),
-                storage_root: RLP_NULL,
+                storage_root: NIL_HASH,
                 code_hash: NIL_DATA,
             },
         }

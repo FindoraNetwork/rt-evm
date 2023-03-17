@@ -108,8 +108,8 @@ impl From<SignedTransaction> for Web3Transaction {
             chain_id: Some(stx.transaction.chain_id.into()),
             standard_v: None,
             v: signature.standard_v.into(),
-            r: signature.r.as_ref().into(),
-            s: signature.s.as_ref().into(),
+            r: signature.r.as_slice().into(),
+            s: signature.s.as_slice().into(),
         }
     }
 }
@@ -148,8 +148,8 @@ impl From<(SignedTransaction, Receipt)> for Web3Transaction {
             chain_id: Some(stx.transaction.chain_id.into()),
             standard_v: None,
             v: signature.standard_v.into(),
-            r: signature.r.as_ref().into(),
-            s: signature.s.as_ref().into(),
+            r: signature.r.as_slice().into(),
+            s: signature.s.as_slice().into(),
         }
     }
 }

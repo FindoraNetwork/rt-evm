@@ -1,6 +1,4 @@
-use crate::types::{
-    Bytes, BytesMut, Hash, Hasher, Public, TypesError, H160, H256, H520, U256,
-};
+use crate::types::{Bytes, Hash, Hasher, Public, TypesError, H160, H256, H520, U256};
 pub use ethereum::{
     AccessList, AccessListItem, EIP1559TransactionMessage as TransactionMessage,
     TransactionAction, TransactionRecoveryId, TransactionSignature,
@@ -121,7 +119,7 @@ impl UnsignedTransaction {
         &self,
         chain_id: u64,
         signature: Option<SignatureComponents>,
-    ) -> BytesMut {
+    ) -> Bytes {
         UnverifiedTransaction {
             unsigned: self.clone(),
             chain_id,
@@ -129,6 +127,7 @@ impl UnsignedTransaction {
             hash: Default::default(),
         }
         .rlp_bytes()
+        .to_vec()
     }
 
     pub fn to(&self) -> Option<H160> {
@@ -305,7 +304,7 @@ impl UnverifiedTransaction {
     }
 
     pub fn get_hash(&self) -> H256 {
-        Hasher::digest(&self.unsigned.encode(self.chain_id, self.signature.clone()))
+        Hasher::digest(self.unsigned.encode(self.chain_id, self.signature.clone()))
     }
 
     pub fn check_hash(&self) -> Result<()> {
@@ -364,8 +363,8 @@ impl From<Bytes> for SignatureComponents {
     fn from(bytes: Bytes) -> Self {
         debug_assert!(bytes.len() == 65);
         SignatureComponents {
-            r: Bytes::from(bytes[0..32].to_vec()),
-            s: Bytes::from(bytes[32..64].to_vec()),
+            r: bytes[0..32].to_vec(),
+            s: bytes[32..64].to_vec(),
             standard_v: bytes[64],
         }
     }
@@ -373,10 +372,10 @@ impl From<Bytes> for SignatureComponents {
 
 impl From<SignatureComponents> for Bytes {
     fn from(sc: SignatureComponents) -> Self {
-        let mut bytes = BytesMut::from(sc.r.as_ref());
-        bytes.extend_from_slice(sc.s.as_ref());
+        let mut bytes = sc.r.clone();
+        bytes.extend_from_slice(&sc.s);
         bytes.extend_from_slice(&[sc.standard_v]);
-        bytes.freeze()
+        bytes
     }
 }
 

@@ -1,5 +1,5 @@
 use rt_evm_model::types::{
-    Bloom, Hasher, Log, MerkleRoot, SignedTransaction, H160, H256, RLP_NULL, U256,
+    Bloom, Hasher, Log, MerkleRoot, SignedTransaction, H160, H256, NIL_HASH, U256,
 };
 use std::fmt::Debug;
 
@@ -71,7 +71,7 @@ where
     B: AsRef<[u8]> + Debug,
 {
     if input.is_empty() {
-        RLP_NULL
+        NIL_HASH
     } else {
         ruc::crypto::trie_root::<Vec<_>, _, _>(input).into()
     }
@@ -82,7 +82,7 @@ where
     I: AsRef<[u8]> + Debug,
 {
     if input.is_empty() {
-        RLP_NULL
+        NIL_HASH
     } else {
         let indexed_hashes = input
             .iter()

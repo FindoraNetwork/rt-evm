@@ -10,7 +10,7 @@ lint:
 	cargo clippy --workspace --features="benchmark"
 
 test:
-	cargo test --workspace
+	cargo test --workspace -- --nocapture
 
 update:
 	rustup update stable

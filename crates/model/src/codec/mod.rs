@@ -16,7 +16,7 @@ pub trait ProtocolCodec: Sized + Send {
 
 impl<T: Encodable + Decodable + Send> ProtocolCodec for T {
     fn encode(&self) -> Result<Bytes> {
-        Ok(self.rlp_bytes().freeze())
+        Ok(self.rlp_bytes().to_vec())
     }
 
     fn decode<B: AsRef<[u8]>>(bytes: B) -> Result<Self> {
@@ -32,7 +32,7 @@ impl ProtocolCodec for DBBytes {
     }
 
     fn decode<B: AsRef<[u8]>>(bytes: B) -> Result<Self> {
-        let inner = Bytes::copy_from_slice(bytes.as_ref());
+        let inner = bytes.as_ref().to_vec();
         Ok(Self(inner))
     }
 }

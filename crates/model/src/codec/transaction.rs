@@ -1,4 +1,4 @@
-use bytes::BufMut;
+use bytes::{BufMut, BytesMut};
 use ethereum_types::BigEndianHash;
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 
@@ -6,7 +6,7 @@ use rt_evm_crypto::secp256k1_recover;
 
 use crate::lazy::CHAIN_ID;
 use crate::types::{
-    public_to_address, AccessList, AccessListItem, Bytes, BytesMut, Eip1559Transaction,
+    public_to_address, AccessList, AccessListItem, Bytes, Eip1559Transaction,
     Eip2930Transaction, Hasher, LegacyTransaction, Public, SignatureComponents,
     SignedTransaction, UnsignedTransaction, UnverifiedTransaction, H256, U256,
 };
@@ -49,16 +49,12 @@ impl SignatureComponents {
                 let tmp_r: U256 = rlp.val_at(offset + 1)?;
                 let tmp_s: U256 = rlp.val_at(offset + 2)?;
                 (
-                    Bytes::from(
-                        <H256 as BigEndianHash>::from_uint(&tmp_r)
-                            .as_bytes()
-                            .to_vec(),
-                    ),
-                    Bytes::from(
-                        <H256 as BigEndianHash>::from_uint(&tmp_s)
-                            .as_bytes()
-                            .to_vec(),
-                    ),
+                    <H256 as BigEndianHash>::from_uint(&tmp_r)
+                        .as_bytes()
+                        .to_vec(),
+                    <H256 as BigEndianHash>::from_uint(&tmp_s)
+                        .as_bytes()
+                        .to_vec(),
                 )
             }
             false => {

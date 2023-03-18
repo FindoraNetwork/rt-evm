@@ -2,6 +2,7 @@ use hash_db::{AsHashDB, HashDB, HashDBRef, Hasher as KeyHasher, Prefix};
 use ruc::*;
 use serde::{Deserialize, Serialize};
 use sp_trie::cache::{CacheSize, SharedTrieCache};
+use std::marker::PhantomData;
 use vsdb::{basic::mapx_ord_rawkey::MapxOrdRawKey as Map, RawBytes, ValueEnDe};
 
 pub use keccak_hasher::KeccakHasher;
@@ -24,9 +25,7 @@ where
 {
     data: Map<Value<T>>,
     cache: Option<(SharedCache, usize)>,
-    hashed_null_key: H::Out,
-    original_null_key: Vec<u8>,
-    null_node_data: T,
+    _marker: PhantomData<H>,
 }
 
 impl<H, T> VsBackend<H, T>
@@ -34,17 +33,8 @@ where
     H: KeyHasher,
     T: TrieVar,
 {
-    /// Create a new `VsBackend` from the default null key/data
+    /// Create a new `VsBackend`.
     pub fn new(cache_size: Option<usize>) -> Self {
-        Self::from_null_node(&[0u8][..], (&[0u8][..]).into(), cache_size)
-    }
-
-    /// Create a new `VsBackend` from a given null key/data
-    fn from_null_node(
-        null_key: &[u8],
-        null_node_data: T,
-        cache_size: Option<usize>,
-    ) -> Self {
         let cache = cache_size.map(|n| {
             (
                 alt!(
@@ -59,9 +49,7 @@ where
         VsBackend {
             data: Map::new(),
             cache,
-            hashed_null_key: H::hash(null_key),
-            original_null_key: null_key.to_vec(),
-            null_node_data,
+            _marker: PhantomData,
         }
     }
 
@@ -76,9 +64,6 @@ where
     T: TrieVar + Clone + Sync + Send + PartialEq + Default,
 {
     fn get(&self, key: &<H as KeyHasher>::Out, prefix: Prefix) -> Option<T> {
-        if key == &self.hashed_null_key {
-            return Some(self.null_node_data.clone());
-        }
         let key = prefixed_key::<H>(key, prefix);
         match self.data.get(key) {
             Some(Value { v, rc }) if rc > 0 => Some(v),
@@ -87,18 +72,11 @@ where
     }
 
     fn contains(&self, key: &<H as KeyHasher>::Out, prefix: Prefix) -> bool {
-        if key == &self.hashed_null_key {
-            return true;
-        }
         let key = prefixed_key::<H>(key, prefix);
         matches!(self.data.get(key), Some(Value { v: _, rc }) if rc > 0)
     }
 
     fn emplace(&mut self, key: <H as KeyHasher>::Out, prefix: Prefix, value: T) {
-        if value == self.null_node_data {
-            return;
-        }
-
         let key = prefixed_key::<H>(&key, prefix);
 
         if let Some(mut old) = self.data.get_mut(&key) {
@@ -116,20 +94,12 @@ where
 
     fn insert(&mut self, prefix: Prefix, value: &[u8]) -> <H as KeyHasher>::Out {
         let v = T::from(value);
-        if v == self.null_node_data {
-            return self.hashed_null_key;
-        }
-
         let key = H::hash(value);
         HashDB::emplace(self, key, prefix, v);
         key
     }
 
     fn remove(&mut self, key: &<H as KeyHasher>::Out, prefix: Prefix) {
-        if key == &self.hashed_null_key {
-            return;
-        }
-
         let key = prefixed_key::<H>(key, prefix);
         if let Some(mut v) = self.data.get_mut(&key) {
             if v.rc > 0 {
@@ -219,9 +189,6 @@ where
 {
     data: Map<Value<T>>,
     cache_size: Option<usize>,
-
-    original_null_key: Vec<u8>,
-    null_node_data: Vec<u8>,
 }
 
 impl<H, T> From<VsBackendSerde<T>> for VsBackend<H, T>
@@ -235,9 +202,7 @@ where
             cache: vbs
                 .cache_size
                 .map(|n| (SharedCache::new(CacheSize::new(n)), n)),
-            hashed_null_key: H::hash(&vbs.original_null_key),
-            original_null_key: vbs.original_null_key,
-            null_node_data: T::from(&vbs.null_node_data),
+            _marker: PhantomData,
         }
     }
 }
@@ -251,8 +216,6 @@ where
         Self {
             data: unsafe { vb.data.shadow() },
             cache_size: vb.cache.as_ref().map(|c| c.1),
-            original_null_key: vb.original_null_key.clone(),
-            null_node_data: vb.null_node_data.as_ref().to_vec(),
         }
     }
 }

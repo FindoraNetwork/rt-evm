@@ -92,9 +92,14 @@ impl EvmRuntime {
                     exector_adapter.apply(td.address, td.basic(), None, vec![], true);
                 });
 
-            // Set up the genesis block
+            // Set up the genesis block.
+            //
+            // NOTE:
+            // we should set the timestamp to a static value,
+            // do NOT use the local time of the native machine,
+            // or various consensus issues will occur.
             r.storage
-                .set_block(Block::mock(chain_id, 0, exector_adapter.commit(), ts!()))
+                .set_block(Block::mock(chain_id, 0, exector_adapter.commit(), 0))
                 .c(d!())?;
         }
 

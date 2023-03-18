@@ -290,7 +290,7 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         let mut storage_trie = if storage_root == NIL_HASH {
             let mut trie = pnk!(self.trie.trie_create(address.as_bytes(), None));
             // make existing instance different with the default one
-            pnk!(trie.insert(&[], &[]));
+            pnk!(trie.insert(&[0u8][..], &[0u8][..]));
             trie
         } else {
             pnk!(

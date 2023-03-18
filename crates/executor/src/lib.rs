@@ -126,6 +126,8 @@ impl Executor for RTEvmExecutor {
 
             let mut r = Self::evm_exec(backend, &config, &precompiles, tx);
 
+            backend.commit();
+
             r.logs = backend.get_logs();
             gas += r.gas_used;
             fee = fee.checked_add(r.fee_cost).unwrap_or(U256::max_value());
@@ -136,7 +138,7 @@ impl Executor for RTEvmExecutor {
             res.push(r);
         }
 
-        // commit changes by all txs included in this block only once
+        // Get the new root, the look-like `commit` is a noop here
         let new_state_root = backend.commit();
 
         let transaction_root = trie_root_indexed(&tx_hashes);

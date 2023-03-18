@@ -1,5 +1,4 @@
 use hash_db::{AsHashDB, HashDB, HashDBRef, Hasher as KeyHasher, Prefix};
-use rt_evm_model::types::H256;
 use ruc::*;
 use serde::{Deserialize, Serialize};
 use sp_trie::cache::{CacheSize, SharedTrieCache};
@@ -37,11 +36,7 @@ where
 {
     /// Create a new `VsBackend` from the default null key/data
     pub fn new(cache_size: Option<usize>) -> Self {
-        Self::from_null_node(
-            H256::zero().as_bytes(),
-            H256::zero().as_bytes().into(),
-            cache_size,
-        )
+        Self::from_null_node(&[0u8][..], (&[0u8][..]).into(), cache_size)
     }
 
     /// Create a new `VsBackend` from a given null key/data
@@ -286,7 +281,7 @@ where
 mod test {
     #[test]
     fn print_null_value() {
-        // use super::*;
-        // println!("{:?}", KeccakHasher::hash(&[]));
+        use super::*;
+        println!("{:?}", KeccakHasher::hash(&[]));
     }
 }

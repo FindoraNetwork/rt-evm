@@ -86,10 +86,12 @@ impl EvmRuntime {
                 .for_each(|td| {
                     exector_adapter.apply(td.address, td.basic(), None, vec![], true);
                 });
-        }
 
-        // set a genesis block first
-        r.storage.set_block(Block::genesis(chain_id)).c(d!())?;
+            // Set up the genesis block
+            r.storage
+                .set_block(Block::mock(chain_id, 0, exector_adapter.commit(), ts!()))
+                .c(d!())?;
+        }
 
         // Only need to write once time !
         fs::write(META_PATH.chain_id.as_path(), u64::to_be_bytes(r.chain_id)).c(d!())?;

@@ -132,17 +132,22 @@ impl Block {
         Proposal::from(self).hash()
     }
 
-    pub fn genesis(chain_id: u64) -> Self {
+    pub fn mock(
+        chain_id: u64,
+        number: u64,
+        state_root: MerkleRoot,
+        timestamp: u64,
+    ) -> Self {
         let header = Header {
             prev_hash: Default::default(),
             proposer: Default::default(),
-            state_root: Default::default(),
+            state_root,
             transactions_root: NIL_HASH,
             receipts_root: NIL_HASH,
             log_bloom: Bloom::default(),
             difficulty: U256::one(),
-            timestamp: ruc::ts!(),
-            number: 0,
+            timestamp,
+            number, // block height
             gas_used: 0.into(),
             gas_limit: MAX_BLOCK_GAS_LIMIT.into(),
             extra_data: Default::default(),

@@ -327,4 +327,8 @@ impl<'a> RTEvmExecutorAdapter<'a> {
             && new_account.nonce == U256::zero()
             && new_account.code_hash.is_zero()
     }
+
+    pub fn commit(&mut self) -> MerkleRoot {
+        self.state.commit()
+    }
 }

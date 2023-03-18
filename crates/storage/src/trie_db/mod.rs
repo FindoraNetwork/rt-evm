@@ -250,6 +250,7 @@ impl<'a> MptMeta<'a> {
 impl Drop for MptMeta<'_> {
     fn drop(&mut self) {
         unsafe {
+            drop(Box::from_raw(self.root));
             if let Some(c) = mem::take(&mut self.cache) {
                 Box::from_raw(c.cache)
                     .merge_into(&Box::from_raw(c.local_cache), *self.root);

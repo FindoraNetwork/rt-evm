@@ -8,3 +8,8 @@ ruc = "4.1"
 parking_lot = "0.12.1"
 
 rt-evm-model = { path = "../model" }
+
+[features]
+default = []
+
+benchmark = []

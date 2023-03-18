@@ -3,7 +3,7 @@ use rt_evm_model::{
     codec::ProtocolCodec,
     traits::{ApplyBackend, Backend, BlockStorage, ExecutorAdapter, TxStorage},
     types::{
-        Account, ExecutorContext, Hasher, Log, MerkleRoot, Proposal, GB, H160, H256,
+        Account, ExecutorContext, Hasher, Log, MerkleRoot, Proposal, H160, H256,
         NIL_DATA, NIL_HASH, U256,
     },
 };
@@ -228,18 +228,14 @@ impl<'a> ApplyBackend for RTEvmExecutorAdapter<'a> {
 impl<'a> RTEvmExecutorAdapter<'a> {
     pub const WORLD_STATE_META_KEY: [u8; 1] = [0];
 
-    const WORLD_STATE_CACHE_SIZE: usize = 4 * GB;
-
     pub fn new(
         trie: &'a MptStore,
         storage: &'a FunStorage,
         exec_ctx: ExecutorContext,
+        world_state_cache_size: Option<usize>,
     ) -> Result<Self> {
         let state = trie
-            .trie_create(
-                &Self::WORLD_STATE_META_KEY,
-                Some(Self::WORLD_STATE_CACHE_SIZE),
-            )
+            .trie_create(&Self::WORLD_STATE_META_KEY, world_state_cache_size)
             .c(d!())?;
         Ok(RTEvmExecutorAdapter {
             state,
@@ -292,7 +288,10 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         };
 
         let mut storage_trie = if storage_root == NIL_HASH {
-            pnk!(self.trie.trie_create(address.as_bytes(), None))
+            let mut trie = pnk!(self.trie.trie_create(address.as_bytes(), None));
+            // make existing instance different with the default one
+            pnk!(trie.insert(&[], &[]));
+            trie
         } else {
             pnk!(
                 self.trie

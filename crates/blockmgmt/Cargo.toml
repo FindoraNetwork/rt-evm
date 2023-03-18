@@ -15,3 +15,6 @@ rt-evm-model = { path = "../model" }
 [dev-dependencies]
 
 [features]
+default = []
+
+benchmark = []

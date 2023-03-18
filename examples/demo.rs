@@ -41,6 +41,7 @@ impl Config {
         let rt = EvmRuntime::restore_or_create(
             self.chain_id,
             &self.genesis_token_distributions,
+            None,
         )
         .c(d!())?;
 

@@ -38,4 +38,4 @@ crate-type = ["bin"]
 [features]
 default = []
 
-benchmark = ["rt-evm-api/benchmark", "rt-evm-executor/benchmark"]
+benchmark = ["rt-evm-api/benchmark", "rt-evm-executor/benchmark", "rt-evm-mempool/benchmark"]

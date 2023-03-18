@@ -55,14 +55,17 @@ pub struct TinyMempool {
     tx_lifetime_in_secs: u64,
 }
 
-unsafe impl Sync for TinyMempool {}
-unsafe impl Send for TinyMempool {}
-
 impl TinyMempool {
     // At most 10 minutes for a tx to be alive in mempool,
     // either to be confirmed, or to be discarded
+    #[cfg(not(feature = "benchmark"))]
     pub fn new_default() -> Arc<Self> {
-        Self::new(10_0000, 600)
+        Self::new(2_0000, 600)
+    }
+
+    #[cfg(feature = "benchmark")]
+    pub fn new_default() -> Arc<Self> {
+        Self::new(200_0000, 600)
     }
 
     pub fn new(capacity: u64, tx_lifetime_in_secs: u64) -> Arc<Self> {

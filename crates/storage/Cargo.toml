@@ -24,3 +24,8 @@ rt-evm-model = { path = "../model" }
 rt-evm-crypto = { path = "../utils/crypto" }
 
 [dev-dependencies]
+
+[features]
+default = []
+
+benchmark = []

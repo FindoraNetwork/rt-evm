@@ -29,13 +29,13 @@ const ADDRESS_LEN: usize = 20;
 const HEX_PREFIX: &str = "0x";
 const HEX_PREFIX_UPPER: &str = "0X";
 
+pub const NIL_HASH: H256 = H256::zero();
+
 // hash(&[])
 pub const NIL_DATA: H256 = H256([
     197, 210, 70, 1, 134, 247, 35, 60, 146, 126, 125, 178, 220, 199, 3, 192, 229, 0,
     182, 83, 202, 130, 39, 59, 123, 250, 216, 4, 93, 133, 164, 112,
 ]);
-
-pub const NIL_HASH: H256 = NIL_DATA;
 
 pub const KB: usize = 1024;
 pub const MB: usize = 1024 * KB;

@@ -65,13 +65,18 @@ impl EvmRuntime {
     pub fn create(
         chain_id: u64,
         token_distributions: &[TokenDistributon],
+        world_state_cache_size: Option<usize>,
     ) -> Result<Self> {
         let r = Self::new(chain_id, MptStore::new(), Storage::default());
 
         {
-            let mut exector_adapter =
-                RTEvmExecutorAdapter::new(&r.trie, &r.storage, Default::default())
-                    .c(d!())?;
+            let mut exector_adapter = RTEvmExecutorAdapter::new(
+                &r.trie,
+                &r.storage,
+                Default::default(),
+                world_state_cache_size,
+            )
+            .c(d!())?;
 
             token_distributions
                 .iter()
@@ -141,11 +146,12 @@ impl EvmRuntime {
     pub fn restore_or_create(
         chain_id: u64,
         token_distributions: &[TokenDistributon],
+        world_state_cache_size: Option<usize>,
     ) -> Result<Self> {
         if let Some(rt) = Self::restore().c(d!())? {
             Ok(rt)
         } else {
-            Self::create(chain_id, token_distributions).c(d!())
+            Self::create(chain_id, token_distributions, world_state_cache_size).c(d!())
         }
     }
 

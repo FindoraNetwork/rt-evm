@@ -31,13 +31,18 @@ impl MptStore {
         }
     }
 
+    pub fn trie_remove(&self, backend_key: &[u8]) {
+        self.remove_backend(backend_key);
+    }
+
     pub fn trie_create<'a>(
         &self,
         backend_key: &'a [u8],
         cache_size: Option<usize>,
+        reset: bool,
     ) -> Result<MptOnce<'a>> {
         let backend = MptStore::new_backend(cache_size);
-        self.put_backend(backend_key, &backend).c(d!())?;
+        self.put_backend(backend_key, &backend, reset).c(d!())?;
 
         let backend = Box::into_raw(Box::new(backend));
         unsafe {
@@ -68,12 +73,27 @@ impl MptStore {
         self.meta.get(backend_key)
     }
 
-    fn put_backend(&self, backend_key: &[u8], backend: &TrieBackend) -> Result<()> {
-        if self.meta.contains_key(backend_key) {
+    fn put_backend(
+        &self,
+        backend_key: &[u8],
+        backend: &TrieBackend,
+        reset: bool,
+    ) -> Result<()> {
+        let mut hdr = unsafe { self.meta.shadow() };
+
+        if reset {
+            hdr.remove(backend_key);
+        } else if hdr.contains_key(backend_key) {
             return Err(eg!("backend key already exists"));
         }
-        unsafe { self.meta.shadow() }.insert(backend_key, backend);
+
+        hdr.insert(backend_key, backend);
+
         Ok(())
+    }
+
+    fn remove_backend(&self, backend_key: &[u8]) {
+        unsafe { self.meta.shadow() }.remove(backend_key);
     }
 
     fn new_backend(cache_size: Option<usize>) -> TrieBackend {

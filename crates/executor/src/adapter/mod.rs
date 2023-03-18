@@ -21,7 +21,7 @@ type GlobalState<'a> = WorldStateMpt<'a>;
 
 pub struct RTEvmExecutorAdapter<'a> {
     state: GlobalState<'a>,
-    trie: &'a MptStore,
+    triedb: &'a MptStore,
     storage: &'a FunStorage,
     exec_ctx: ExecutorContext,
 }
@@ -173,7 +173,7 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
                     if storage_root == NIL_HASH {
                         Ok(H256::default())
                     } else {
-                        self.trie
+                        self.triedb
                             .trie_restore(address.as_bytes(), storage_root)
                             .map(|trie| match trie.get(index.as_bytes()) {
                                 Ok(Some(res)) => H256::from_slice(res.as_ref()),
@@ -213,10 +213,12 @@ impl<'a> ApplyBackend for RTEvmExecutorAdapter<'a> {
                         self.apply(address, basic, code, storage, reset_storage);
                     if is_empty && delete_empty {
                         pnk!(self.state.remove(address.as_bytes()));
+                        self.triedb.trie_remove(address.as_bytes());
                     }
                 }
                 Apply::Delete { address } => {
                     let _ = self.state.remove(address.as_bytes());
+                    self.triedb.trie_remove(address.as_bytes());
                 }
             }
         }
@@ -229,17 +231,17 @@ impl<'a> RTEvmExecutorAdapter<'a> {
     pub const WORLD_STATE_META_KEY: [u8; 1] = [0];
 
     pub fn new(
-        trie: &'a MptStore,
+        triedb: &'a MptStore,
         storage: &'a FunStorage,
         exec_ctx: ExecutorContext,
         world_state_cache_size: Option<usize>,
     ) -> Result<Self> {
-        let state = trie
-            .trie_create(&Self::WORLD_STATE_META_KEY, world_state_cache_size)
+        let state = triedb
+            .trie_create(&Self::WORLD_STATE_META_KEY, world_state_cache_size, false)
             .c(d!())?;
         Ok(RTEvmExecutorAdapter {
             state,
-            trie,
+            triedb,
             storage,
             exec_ctx,
         })
@@ -247,17 +249,17 @@ impl<'a> RTEvmExecutorAdapter<'a> {
 
     pub fn from_root(
         state_root: MerkleRoot,
-        trie: &'a MptStore,
+        triedb: &'a MptStore,
         storage: &'a FunStorage,
         exec_ctx: ExecutorContext,
     ) -> Result<Self> {
-        let state = trie
+        let state = triedb
             .trie_restore(&Self::WORLD_STATE_META_KEY, state_root)
             .c(d!())?;
 
         Ok(RTEvmExecutorAdapter {
             state,
-            trie,
+            triedb,
             storage,
             exec_ctx,
         })
@@ -271,31 +273,31 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         storage: I,
         reset_storage: bool,
     ) -> bool {
-        let old_account = match self.state.get(address.as_bytes()) {
-            Ok(Some(raw)) => pnk!(Account::decode(raw)),
-            _ => Account {
-                nonce: U256::zero(),
-                balance: U256::zero(),
-                storage_root: NIL_HASH,
-                code_hash: NIL_DATA,
-            },
+        let (old_account, existing) = match self.state.get(address.as_bytes()) {
+            Ok(Some(raw)) => (pnk!(Account::decode(raw)), true),
+            _ => (
+                Account {
+                    nonce: U256::zero(),
+                    balance: U256::zero(),
+                    storage_root: NIL_HASH,
+                    code_hash: NIL_DATA,
+                },
+                false,
+            ),
         };
 
-        let storage_root = if reset_storage {
-            NIL_HASH
-        } else {
-            old_account.storage_root
-        };
-
-        let mut storage_trie = if storage_root == NIL_HASH {
-            let mut trie = pnk!(self.trie.trie_create(address.as_bytes(), None));
-            // make existing instance different with the default one
-            pnk!(trie.insert(&[0u8][..], &[0u8][..]));
-            trie
+        let mut storage_trie = if reset_storage {
+            pnk!(self.triedb.trie_create(address.as_bytes(), None, true))
+        } else if existing {
+            pnk!(
+                self.triedb
+                    .trie_restore(address.as_bytes(), old_account.storage_root)
+            )
         } else {
             pnk!(
-                self.trie
-                    .trie_restore(address.as_bytes(), old_account.storage_root)
+                self.triedb
+                    .trie_create(address.as_bytes(), None, false)
+                    .c(d!("{}, {:?}", address, address.as_bytes()))
             )
         };
 

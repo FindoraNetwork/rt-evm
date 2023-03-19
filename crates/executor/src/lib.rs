@@ -26,7 +26,7 @@ use rt_evm_model::{
     types::{
         data_gas_cost, Account, Config, ExecResp, Hasher, SignedTransaction,
         TransactionAction, TxResp, GAS_CALL_TRANSACTION, GAS_CREATE_TRANSACTION, H160,
-        MIN_TRANSACTION_GAS_LIMIT, NIL_DATA, NIL_HASH, U256,
+        MIN_TRANSACTION_GAS_LIMIT, NIL_HASH, U256,
     },
 };
 use std::collections::BTreeMap;
@@ -161,7 +161,7 @@ impl Executor for RTEvmExecutor {
                 nonce: Default::default(),
                 balance: Default::default(),
                 storage_root: NIL_HASH,
-                code_hash: NIL_DATA,
+                code_hash: NIL_HASH,
             },
         }
     }

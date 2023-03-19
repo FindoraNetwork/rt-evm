@@ -7,7 +7,7 @@ use rt_evm_model::{
     types::{
         Account, BigEndianHash, Block, BlockNumber, ExecutorContext, Hash, Header,
         Proposal, Receipt, SignedTransaction, TxResp, H160, MAX_BLOCK_GAS_LIMIT,
-        NIL_DATA, NIL_HASH, U256,
+        NIL_HASH, U256,
     },
 };
 use rt_evm_storage::{FunStorage, MptStore};
@@ -118,7 +118,7 @@ impl APIAdapter for DefaultAPIAdapter {
                 nonce: U256::zero(),
                 balance: U256::zero(),
                 storage_root: NIL_HASH,
-                code_hash: NIL_DATA,
+                code_hash: NIL_HASH,
             }),
         }
     }

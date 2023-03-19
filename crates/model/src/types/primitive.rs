@@ -31,12 +31,6 @@ const HEX_PREFIX_UPPER: &str = "0X";
 
 pub const NIL_HASH: H256 = H256::zero();
 
-// hash(&[])
-pub const NIL_DATA: H256 = H256([
-    197, 210, 70, 1, 134, 247, 35, 60, 146, 126, 125, 178, 220, 199, 3, 192, 229, 0,
-    182, 83, 202, 130, 39, 59, 123, 250, 216, 4, 93, 133, 164, 112,
-]);
-
 pub const KB: usize = 1024;
 pub const MB: usize = 1024 * KB;
 pub const GB: usize = 1024 * MB;
@@ -319,13 +313,5 @@ mod tests {
         let hex = String::from("0x123f");
         let _ = Hex::from_string(hex.clone()).unwrap();
         let _ = Hex::decode(hex).unwrap();
-    }
-
-    #[test]
-    fn test_hash_empty() {
-        let bytes = Hex::empty();
-        let hash = Hasher::digest(bytes.as_bytes());
-        // println!("{:?}", Hasher::digest([]).as_bytes());
-        assert_eq!(hash, NIL_DATA);
     }
 }

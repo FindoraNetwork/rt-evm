@@ -4,7 +4,7 @@ use rt_evm_model::{
     traits::{ApplyBackend, Backend, BlockStorage, ExecutorAdapter, TxStorage},
     types::{
         Account, ExecutorContext, Hasher, Log, MerkleRoot, Proposal, H160, H256,
-        NIL_DATA, NIL_HASH, U256,
+        NIL_HASH, U256,
     },
 };
 use rt_evm_storage::{
@@ -60,7 +60,7 @@ impl<'a> ExecutorAdapter for RTEvmExecutorAdapter<'a> {
             nonce: U256::zero(),
             balance: U256::zero(),
             storage_root: NIL_HASH,
-            code_hash: NIL_DATA,
+            code_hash: NIL_HASH,
         }
     }
 
@@ -152,7 +152,7 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
             return Vec::new();
         };
 
-        if code_hash == NIL_DATA {
+        if code_hash == NIL_HASH {
             return Vec::new();
         }
 
@@ -280,7 +280,7 @@ impl<'a> RTEvmExecutorAdapter<'a> {
                     nonce: U256::zero(),
                     balance: U256::zero(),
                     storage_root: NIL_HASH,
-                    code_hash: NIL_DATA,
+                    code_hash: NIL_HASH,
                 },
                 false,
             ),

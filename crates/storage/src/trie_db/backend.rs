@@ -1,7 +1,11 @@
 use hash_db::{AsHashDB, HashDB, HashDBRef, Hasher as KeyHasher, Prefix};
 use ruc::*;
 use serde::{Deserialize, Serialize};
-use sp_trie::cache::{CacheSize, SharedTrieCache};
+use sp_trie::{
+    cache::{CacheSize, SharedTrieCache},
+    NodeCodec,
+};
+use sp_trie_db::NodeCodec as _;
 use vsdb::{basic::mapx_ord_rawkey::MapxOrdRawKey as Map, RawBytes, ValueEnDe};
 
 pub use keccak_hasher::KeccakHasher;
@@ -25,7 +29,6 @@ where
     data: Map<Value<T>>,
     cache: Option<(SharedCache, usize)>,
     hashed_null_key: H::Out,
-    original_null_key: Vec<u8>,
     null_node_data: T,
 }
 
@@ -36,15 +39,6 @@ where
 {
     /// Create a new `VsBackend` from the default null key/data
     pub fn new(cache_size: Option<usize>) -> Self {
-        Self::from_null_node(&[0u8][..], (&[0u8][..]).into(), cache_size)
-    }
-
-    /// Create a new `VsBackend` from a given null key/data
-    fn from_null_node(
-        null_key: &[u8],
-        null_node_data: T,
-        cache_size: Option<usize>,
-    ) -> Self {
         let cache = cache_size.map(|n| {
             (
                 alt!(
@@ -59,9 +53,8 @@ where
         VsBackend {
             data: Map::new(),
             cache,
-            hashed_null_key: H::hash(null_key),
-            original_null_key: null_key.to_vec(),
-            null_node_data,
+            hashed_null_key: NodeCodec::<H>::hashed_null_node(), // the initial root node
+            null_node_data: [0u8].as_slice().into(),
         }
     }
 
@@ -220,7 +213,6 @@ where
     data: Map<Value<T>>,
     cache_size: Option<usize>,
 
-    original_null_key: Vec<u8>,
     null_node_data: Vec<u8>,
 }
 
@@ -235,8 +227,7 @@ where
             cache: vbs
                 .cache_size
                 .map(|n| (SharedCache::new(CacheSize::new(n)), n)),
-            hashed_null_key: H::hash(&vbs.original_null_key),
-            original_null_key: vbs.original_null_key,
+            hashed_null_key: NodeCodec::<H>::hashed_null_node(),
             null_node_data: T::from(&vbs.null_node_data),
         }
     }
@@ -251,7 +242,6 @@ where
         Self {
             data: unsafe { vb.data.shadow() },
             cache_size: vb.cache.as_ref().map(|c| c.1),
-            original_null_key: vb.original_null_key.clone(),
             null_node_data: vb.null_node_data.as_ref().to_vec(),
         }
     }
@@ -283,5 +273,6 @@ mod test {
     fn print_null_value() {
         use super::*;
         println!("{:?}", KeccakHasher::hash(&[]));
+        println!("{:?}", KeccakHasher::hash(&[0u8][..]));
     }
 }

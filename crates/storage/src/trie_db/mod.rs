@@ -125,7 +125,7 @@ impl<'a> MptOnce<'a> {
     }
 
     pub fn insert(&mut self, key: &[u8], value: &[u8]) -> Result<()> {
-        self.mpt.insert(key, value).c(d!()).map(|_| ())
+        self.mpt.insert(key, value).c(d!())
     }
 
     pub fn remove(&mut self, key: &[u8]) -> Result<()> {
@@ -155,7 +155,12 @@ impl<'a> MptMut<'a> {
     // keep private !!
     pub fn new(backend: &'a mut TrieBackend) -> Self {
         let lc = backend.get_cache_hdr().map(|hdr| hdr.local_cache());
-        let meta = MptMeta::new(lc, Default::default(), true);
+
+        // The buf will be rewrited when building the target `Trie`,
+        // so its original contents can be arbitrary values.
+        let root_buf = Default::default();
+
+        let meta = MptMeta::new(lc, root_buf, true);
 
         let trie = TrieDBMutBuilder::new(backend, unsafe { &mut *meta.root })
             .with_optional_cache(

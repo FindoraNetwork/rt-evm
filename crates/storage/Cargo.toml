@@ -10,6 +10,7 @@ parking_lot = "0.12"
 rayon = "1.7.0"
 
 sp-trie = "19.0.0"
+sp-trie-db = { package = "trie-db", version = "0.26.0" }
 hash-db = "0.15.2"
 keccak-hasher = "0.15.3"
 

@@ -152,7 +152,7 @@ impl TinyMempool {
     #[cfg_attr(feature = "benchmark", allow(dead_code))]
     pub fn tx_insert(&self, tx: SignedTx, signature_checked: bool) -> Result<()> {
         if self.tx_pending_cnt(None) > self.capacity {
-            return Err(eg!("mempool is full"));
+            return Err(eg!("Mempool is full"));
         }
 
         if self
@@ -162,7 +162,7 @@ impl TinyMempool {
             .and_then(|m| m.get(&tx.transaction.hash))
             .is_some()
         {
-            return Err(eg!("Already cached in mempool."));
+            return Err(eg!("Already cached in mempool"));
         }
 
         #[cfg(not(feature = "benchmark"))]
@@ -255,25 +255,25 @@ impl TinyMempool {
         let gas_price = utx.unsigned.gas_price();
 
         if gas_price == U256::zero() {
-            return Err(eg!("The 'gas price' is zero."));
+            return Err(eg!("The 'gas price' is zero"));
         }
 
         if gas_price >= U256::from(u64::MAX) {
-            return Err(eg!("The 'gas price' exceeds the limition(u64::MAX)."));
+            return Err(eg!("The 'gas price' exceeds the limition(u64::MAX)"));
         }
 
         let gas_limit = *utx.unsigned.gas_limit();
 
         if gas_limit < MIN_TRANSACTION_GAS_LIMIT.into() {
             return Err(eg!(
-                "The 'gas limit' less than {}.",
+                "The 'gas limit' less than {}",
                 MIN_TRANSACTION_GAS_LIMIT
             ));
         }
 
         if gas_limit > self.tx_gas_cap {
             return Err(eg!(
-                "The 'gas limit' exceeds the gas capacity({}).",
+                "The 'gas limit' exceeds the gas capacity({})",
                 self.tx_gas_cap,
             ));
         }

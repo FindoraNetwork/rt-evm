@@ -219,8 +219,13 @@ impl EvmRuntime {
     }
 
     // Check transactions received from other nodes?
-    pub fn check_signed_transaction(&self, tx: &SignedTx) -> Result<()> {
+    pub fn check_signed_tx(&self, tx: &SignedTx) -> Result<()> {
         self.mempool.tx_pre_check(tx, false)
+    }
+
+    // Cache transactions received from other nodes?
+    pub fn cache_signed_tx(&self, tx: SignedTx) -> Result<()> {
+        self.mempool.tx_insert(tx, false)
     }
 
     pub async fn spawn_jsonrpc_server(

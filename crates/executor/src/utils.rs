@@ -93,7 +93,7 @@ where
     }
 }
 
-pub fn trie_root_transactions(input: &[SignedTransaction]) -> MerkleRoot {
+pub fn trie_root_txs(input: &[SignedTransaction]) -> MerkleRoot {
     trie_root_indexed(
         &input
             .iter()

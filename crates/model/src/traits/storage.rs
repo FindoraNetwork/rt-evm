@@ -18,7 +18,7 @@ pub trait BlockStorage: Send + Sync {
 }
 
 pub trait TxStorage {
-    fn insert_transactions(
+    fn insert_txs(
         &self,
         block_height: u64,
         signed_txs: Vec<SignedTransaction>,
@@ -26,13 +26,13 @@ pub trait TxStorage {
 
     fn get_block_by_hash(&self, block_hash: &Hash) -> Result<Option<Block>>;
 
-    fn get_transactions(
+    fn get_txs(
         &self,
         block_height: u64,
         hashes: &[Hash],
     ) -> Result<Vec<Option<SignedTransaction>>>;
 
-    fn get_transaction_by_hash(&self, hash: &Hash) -> Result<Option<SignedTransaction>>;
+    fn get_tx_by_hash(&self, hash: &Hash) -> Result<Option<SignedTransaction>>;
 
     fn insert_receipts(&self, block_height: u64, receipts: Vec<Receipt>) -> Result<()>;
 

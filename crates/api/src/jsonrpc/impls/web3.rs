@@ -66,7 +66,7 @@ impl<Adapter: APIAdapter> Web3RpcImpl<Adapter> {
 
 #[async_trait]
 impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> {
-    async fn send_raw_transaction(&self, tx: Hex) -> RpcResult<H256> {
+    async fn send_raw_tx(&self, tx: Hex) -> RpcResult<H256> {
         let utx = UnverifiedTransaction::decode(&tx.as_bytes())
             .map_err(|e| Error::Custom(e.to_string()))?;
 
@@ -82,13 +82,10 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         Ok(hash)
     }
 
-    async fn get_transaction_by_hash(
-        &self,
-        hash: H256,
-    ) -> RpcResult<Option<Web3Transaction>> {
+    async fn get_tx_by_hash(&self, hash: H256) -> RpcResult<Option<Web3Transaction>> {
         let res = self
             .adapter
-            .get_transaction_by_hash(hash)
+            .get_tx_by_hash(hash)
             .await
             .map_err(|e| Error::Custom(e.to_string()))?;
 
@@ -133,7 +130,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
                     for (idx, tx) in ret.transactions.iter().enumerate() {
                         let tx = self
                             .adapter
-                            .get_transaction_by_hash(tx.get_hash())
+                            .get_tx_by_hash(tx.get_hash())
                             .await
                             .map_err(|e| Error::Custom(e.to_string()))?
                             .unwrap();
@@ -177,7 +174,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
                     for (idx, tx) in ret.transactions.iter().enumerate() {
                         let tx = self
                             .adapter
-                            .get_transaction_by_hash(tx.get_hash())
+                            .get_tx_by_hash(tx.get_hash())
                             .await
                             .map_err(|e| Error::Custom(e.to_string()))?
                             .unwrap();
@@ -199,7 +196,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         }
     }
 
-    async fn get_transaction_count(
+    async fn get_tx_count(
         &self,
         address: H160,
         number: Option<BlockId>,
@@ -336,10 +333,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         }
     }
 
-    async fn get_block_transaction_count_by_number(
-        &self,
-        number: BlockId,
-    ) -> RpcResult<U256> {
+    async fn get_block_tx_count_by_number(&self, number: BlockId) -> RpcResult<U256> {
         let block = self
             .adapter
             .get_block_by_number(number.into())
@@ -352,13 +346,10 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         Ok(U256::from(count))
     }
 
-    async fn get_transaction_receipt(
-        &self,
-        hash: H256,
-    ) -> RpcResult<Option<Web3Receipt>> {
+    async fn get_tx_receipt(&self, hash: H256) -> RpcResult<Option<Web3Receipt>> {
         let res = self
             .adapter
-            .get_transaction_by_hash(hash)
+            .get_tx_by_hash(hash)
             .await
             .map_err(|e| Error::Custom(e.to_string()))?;
 
@@ -583,7 +574,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         Ok(vec![])
     }
 
-    async fn get_block_transaction_count_by_hash(&self, hash: Hash) -> RpcResult<U256> {
+    async fn get_block_tx_count_by_hash(&self, hash: Hash) -> RpcResult<U256> {
         Ok(self
             .adapter
             .get_block_by_hash(hash)
@@ -593,7 +584,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
             .unwrap_or_default())
     }
 
-    async fn get_transaction_by_block_hash_and_index(
+    async fn get_tx_by_block_hash_and_index(
         &self,
         hash: Hash,
         position: U256,
@@ -617,13 +608,13 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
 
         if let Some(block) = block {
             if let Some(tx_hash) = block.tx_hashes.get(index) {
-                return self.get_transaction_by_hash(*tx_hash).await;
+                return self.get_tx_by_hash(*tx_hash).await;
             }
         }
         Ok(None)
     }
 
-    async fn get_transaction_by_block_number_and_index(
+    async fn get_tx_by_block_number_and_index(
         &self,
         number: BlockId,
         position: U256,
@@ -648,7 +639,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
 
         if let Some(block) = block {
             if let Some(tx_hash) = block.tx_hashes.get(index) {
-                return self.get_transaction_by_hash(*tx_hash).await;
+                return self.get_tx_by_hash(*tx_hash).await;
             }
         }
         Ok(None)

@@ -10,8 +10,7 @@ use crate::precompiles::build_precompile_set;
 pub use crate::{
     adapter::RTEvmExecutorAdapter,
     utils::{
-        code_address, decode_revert_msg, logs_bloom, trie_root_indexed,
-        trie_root_transactions,
+        code_address, decode_revert_msg, logs_bloom, trie_root_indexed, trie_root_txs,
     },
 };
 use evm::{

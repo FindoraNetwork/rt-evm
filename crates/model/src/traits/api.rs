@@ -28,12 +28,9 @@ pub trait APIAdapter: Send + Sync {
         tx_hashes: &[Hash],
     ) -> Result<Vec<Option<Receipt>>>;
 
-    async fn get_transaction_by_hash(
-        &self,
-        tx_hash: Hash,
-    ) -> Result<Option<SignedTransaction>>;
+    async fn get_tx_by_hash(&self, tx_hash: Hash) -> Result<Option<SignedTransaction>>;
 
-    async fn get_transactions_by_hashes(
+    async fn get_txs_by_hashes(
         &self,
         block_number: u64,
         tx_hashes: &[Hash],

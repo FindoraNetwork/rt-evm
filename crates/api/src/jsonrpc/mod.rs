@@ -22,14 +22,11 @@ type RpcResult<T> = StdResult<T, Error>;
 pub trait RTEvmWeb3Rpc {
     /// Sends signed transaction, returning its hash.
     #[method(name = "eth_sendRawTransaction")]
-    async fn send_raw_transaction(&self, tx: Hex) -> RpcResult<H256>;
+    async fn send_raw_tx(&self, tx: Hex) -> RpcResult<H256>;
 
     /// Get transaction by its hash.
     #[method(name = "eth_getTransactionByHash")]
-    async fn get_transaction_by_hash(
-        &self,
-        hash: H256,
-    ) -> RpcResult<Option<Web3Transaction>>;
+    async fn get_tx_by_hash(&self, hash: H256) -> RpcResult<Option<Web3Transaction>>;
 
     /// Returns block with given number.
     #[method(name = "eth_getBlockByNumber")]
@@ -50,17 +47,14 @@ pub trait RTEvmWeb3Rpc {
     async fn block_number(&self) -> RpcResult<U256>;
 
     #[method(name = "eth_getTransactionCount")]
-    async fn get_transaction_count(
+    async fn get_tx_count(
         &self,
         address: H160,
         number: Option<BlockId>,
     ) -> RpcResult<U256>;
 
     #[method(name = "eth_getBlockTransactionCountByNumber")]
-    async fn get_block_transaction_count_by_number(
-        &self,
-        number: BlockId,
-    ) -> RpcResult<U256>;
+    async fn get_block_tx_count_by_number(&self, number: BlockId) -> RpcResult<U256>;
 
     #[method(name = "eth_getBalance")]
     async fn get_balance(
@@ -87,10 +81,7 @@ pub trait RTEvmWeb3Rpc {
     async fn get_code(&self, address: H160, number: Option<BlockId>) -> RpcResult<Hex>;
 
     #[method(name = "eth_getTransactionReceipt")]
-    async fn get_transaction_receipt(
-        &self,
-        hash: H256,
-    ) -> RpcResult<Option<Web3Receipt>>;
+    async fn get_tx_receipt(&self, hash: H256) -> RpcResult<Option<Web3Receipt>>;
 
     #[method(name = "eth_gasPrice")]
     async fn gas_price(&self) -> RpcResult<U256>;
@@ -110,17 +101,17 @@ pub trait RTEvmWeb3Rpc {
     async fn accounts(&self) -> RpcResult<Vec<Hex>>;
 
     #[method(name = "eth_getBlockTransactionCountByHash")]
-    async fn get_block_transaction_count_by_hash(&self, hash: Hash) -> RpcResult<U256>;
+    async fn get_block_tx_count_by_hash(&self, hash: Hash) -> RpcResult<U256>;
 
     #[method(name = "eth_getTransactionByBlockHashAndIndex")]
-    async fn get_transaction_by_block_hash_and_index(
+    async fn get_tx_by_block_hash_and_index(
         &self,
         hash: Hash,
         position: U256,
     ) -> RpcResult<Option<Web3Transaction>>;
 
     #[method(name = "eth_getTransactionByBlockNumberAndIndex")]
-    async fn get_transaction_by_block_number_and_index(
+    async fn get_tx_by_block_number_and_index(
         &self,
         number: BlockId,
         position: U256,

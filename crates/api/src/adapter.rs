@@ -92,19 +92,16 @@ impl APIAdapter for DefaultAPIAdapter {
         self.storage.get_receipts(block_number, tx_hashes)
     }
 
-    async fn get_transaction_by_hash(
-        &self,
-        tx_hash: Hash,
-    ) -> Result<Option<SignedTransaction>> {
-        self.storage.get_transaction_by_hash(&tx_hash)
+    async fn get_tx_by_hash(&self, tx_hash: Hash) -> Result<Option<SignedTransaction>> {
+        self.storage.get_tx_by_hash(&tx_hash)
     }
 
-    async fn get_transactions_by_hashes(
+    async fn get_txs_by_hashes(
         &self,
         block_number: u64,
         tx_hashes: &[Hash],
     ) -> Result<Vec<Option<SignedTransaction>>> {
-        self.storage.get_transactions(block_number, tx_hashes)
+        self.storage.get_txs(block_number, tx_hashes)
     }
 
     async fn get_account(

@@ -39,7 +39,7 @@ impl FunStorage {
         }
     }
 
-    fn get_transactions_unlimited(
+    fn get_txs_unlimited(
         &self,
         hashes: &[Hash],
     ) -> Vec<Option<(BlockNumber, SignedTransaction)>> {
@@ -184,7 +184,7 @@ impl BlockStorage for FunStorage {
     fn get_fatblock(&self, number: u64) -> Result<Option<FatBlock>> {
         if let Some(block) = self.get_block(number).c(d!())? {
             let txs = self
-                .get_transactions_unlimited(&block.tx_hashes)
+                .get_txs_unlimited(&block.tx_hashes)
                 .into_iter()
                 .map(|maybe_tx| pnk!(maybe_tx).1)
                 .collect();
@@ -223,7 +223,7 @@ impl BlockStorage for FunStorage {
 }
 
 impl TxStorage for FunStorage {
-    fn insert_transactions(
+    fn insert_txs(
         &self,
         block_number: u64,
         signed_txs: Vec<SignedTransaction>,
@@ -261,7 +261,7 @@ impl TxStorage for FunStorage {
         }
     }
 
-    fn get_transactions(
+    fn get_txs(
         &self,
         block_number: u64,
         hashes: &[Hash],
@@ -271,7 +271,7 @@ impl TxStorage for FunStorage {
         }
 
         Ok(self
-            .get_transactions_unlimited(hashes)
+            .get_txs_unlimited(hashes)
             .into_iter()
             .map(|maybe_tx| {
                 if let Some((number, tx)) = maybe_tx {
@@ -284,7 +284,7 @@ impl TxStorage for FunStorage {
             .collect())
     }
 
-    fn get_transaction_by_hash(&self, hash: &Hash) -> Result<Option<SignedTransaction>> {
+    fn get_tx_by_hash(&self, hash: &Hash) -> Result<Option<SignedTransaction>> {
         Ok(self
             .cache
             .transactions

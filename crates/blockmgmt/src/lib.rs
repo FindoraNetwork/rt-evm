@@ -3,7 +3,7 @@
 
 use rayon::prelude::*;
 use rt_evm_executor::{
-    logs_bloom, trie_root_indexed, trie_root_transactions, RTEvmExecutor as Executor,
+    logs_bloom, trie_root_indexed, trie_root_txs, RTEvmExecutor as Executor,
     RTEvmExecutorAdapter as EvmExecBackend,
 };
 use rt_evm_mempool::Mempool;
@@ -68,9 +68,7 @@ impl BlockMgmt {
         let (block, receipts) = self.generate_block(&txs).c(d!())?;
         let header = block.header.clone();
 
-        self.storage
-            .insert_transactions(header.number, txs)
-            .c(d!())?;
+        self.storage.insert_txs(header.number, txs).c(d!())?;
         self.storage
             .insert_receipts(header.number, receipts)
             .c(d!())?;
@@ -113,7 +111,7 @@ impl BlockMgmt {
         let p = Proposal {
             prev_hash: self.prev_block_hash,
             proposer: self.proposer,
-            transactions_root: trie_root_transactions(txs),
+            transactions_root: trie_root_txs(txs),
             timestamp: self.block_timestamp,
             number: self.block_number,
             gas_limit: MAX_BLOCK_GAS_LIMIT.into(),
@@ -186,7 +184,7 @@ impl BlockMgmt {
 
                 // if self
                 //     .storage
-                //     .get_transaction_by_hash(hash_in_block)
+                //     .get_tx_by_hash(hash_in_block)
                 //     .c(d!())?
                 //     .is_some()
                 // {

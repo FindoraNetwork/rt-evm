@@ -173,25 +173,10 @@ impl BlockMgmt {
             .into_par_iter()
             .map(|i| (&txs[i], &p.tx_hashes[i]))
             .try_for_each(|(tx, hash_in_block)| {
-                tx.transaction.check_hash().c(d!())?;
                 if &tx.transaction.hash != hash_in_block {
                     return Err(eg!("Hash mismatch"));
                 }
-
-                if tx != &SignedTransaction::try_from(tx.transaction.clone()).c(d!())? {
-                    return Err(eg!("Signature verify failed"));
-                }
-
-                // if self
-                //     .storage
-                //     .get_tx_by_hash(hash_in_block)
-                //     .c(d!())?
-                //     .is_some()
-                // {
-                //     return Err(eg!("Historical transaction detected"));
-                // }
-
-                Ok(())
+                self.mempool.tx_pre_check(tx, false).c(d!())
             })
     }
 }

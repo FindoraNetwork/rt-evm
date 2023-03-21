@@ -4,7 +4,7 @@
 use parking_lot::{Mutex, RwLock};
 use rt_evm_model::{
     codec::ProtocolCodec,
-    traits::BlockStorage,
+    traits::{BlockStorage, TxStorage},
     types::{
         Account, BlockNumber, Hash, SignedTransaction as SignedTx, H160,
         MAX_BLOCK_GAS_LIMIT, MIN_TRANSACTION_GAS_LIMIT, NIL_HASH, U256,
@@ -192,6 +192,10 @@ impl TinyMempool {
 
         if acc.balance < gas_price.saturating_mul(MIN_TRANSACTION_GAS_LIMIT.into()) {
             return Err(eg!("Insufficient balance to cover possible gas"));
+        }
+
+        if self.storage.get_tx_by_hash(&utx.hash).c(d!())?.is_some() {
+            return Err(eg!("Historical transaction detected"));
         }
 
         Ok(())

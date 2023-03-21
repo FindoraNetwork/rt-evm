@@ -14,8 +14,7 @@ use rt_evm_model::{
     traits::APIAdapter,
     types::{
         Block, BlockNumber, Bytes, Hash, Header, Hex, Receipt, SignedTransaction,
-        TxResp, UnverifiedTransaction, H160, H256, H64, MAX_BLOCK_GAS_LIMIT,
-        MIN_TRANSACTION_GAS_LIMIT, U256,
+        TxResp, UnverifiedTransaction, H160, H256, H64, MAX_BLOCK_GAS_LIMIT, U256,
     },
 };
 use ruc::*;
@@ -25,15 +24,11 @@ const MAX_LOG_NUM: usize = 10000;
 
 pub struct Web3RpcImpl<Adapter> {
     adapter: Arc<Adapter>,
-    gas_cap: U256,
 }
 
 impl<Adapter: APIAdapter> Web3RpcImpl<Adapter> {
-    pub fn new(adapter: Arc<Adapter>, gas_cap: Option<u64>) -> Self {
-        Self {
-            adapter,
-            gas_cap: gas_cap.unwrap_or(MAX_BLOCK_GAS_LIMIT / 2).into(),
-        }
+    pub fn new(adapter: Arc<Adapter>) -> Self {
+        Self { adapter }
     }
 
     async fn call_evm(
@@ -71,68 +66,6 @@ impl<Adapter: APIAdapter> Web3RpcImpl<Adapter> {
 
 #[async_trait]
 impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> {
-    #[cfg(not(feature = "benchmark"))]
-    async fn send_raw_transaction(&self, tx: Hex) -> RpcResult<H256> {
-        let utx = UnverifiedTransaction::decode(&tx.as_bytes())
-            .map_err(|e| Error::Custom(e.to_string()))?;
-
-        let gas_price = utx.unsigned.gas_price();
-
-        if gas_price == U256::zero() {
-            return Err(Error::Custom(
-                "The transaction gas price is zero".to_string(),
-            ));
-        }
-
-        if gas_price >= U256::from(u64::MAX) {
-            return Err(Error::Custom("The gas price is too large".to_string()));
-        }
-
-        let gas_limit = *utx.unsigned.gas_limit();
-
-        if gas_limit < MIN_TRANSACTION_GAS_LIMIT.into() {
-            return Err(Error::Custom(
-                "The transaction gas limit less than 21000".to_string(),
-            ));
-        }
-
-        if gas_limit > self.gas_cap {
-            return Err(Error::Custom(
-                "The transaction gas limit is too large".to_string(),
-            ));
-        }
-
-        utx.check_hash().map_err(|e| Error::Custom(e.to_string()))?;
-
-        let stx = SignedTransaction::try_from(utx)
-            .map_err(|e| Error::Custom(e.to_string()))?;
-        let hash = stx.transaction.hash;
-
-        let acc = self
-            .adapter
-            .get_account(stx.sender, None)
-            .await
-            .map_err(|e| Error::Custom(e.to_string()))?;
-
-        if &acc.nonce >= stx.transaction.unsigned.nonce() {
-            return Err(Error::Custom("Invalid nonce".to_owned()));
-        }
-
-        if acc.balance < gas_price.saturating_mul(MIN_TRANSACTION_GAS_LIMIT.into()) {
-            return Err(Error::Custom(
-                "Insufficient balance to cover possible gas".to_owned(),
-            ));
-        }
-
-        self.adapter
-            .insert_signed_tx(stx)
-            .await
-            .map_err(|e| Error::Custom(e.to_string()))?;
-
-        Ok(hash)
-    }
-
-    #[cfg(feature = "benchmark")]
     async fn send_raw_transaction(&self, tx: Hex) -> RpcResult<H256> {
         let utx = UnverifiedTransaction::decode(&tx.as_bytes())
             .map_err(|e| Error::Custom(e.to_string()))?;

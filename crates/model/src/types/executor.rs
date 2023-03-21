@@ -8,6 +8,8 @@ use rlp_derive::{RlpDecodable, RlpEncodable};
 use crate::codec::ProtocolCodec;
 use crate::types::{Hash, Hasher, Header, MerkleRoot, Proposal, H160, U256};
 
+pub const WORLD_STATE_META_KEY: [u8; 1] = [0];
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExecResp {
     pub state_root: MerkleRoot,

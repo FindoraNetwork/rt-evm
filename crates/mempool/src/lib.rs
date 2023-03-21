@@ -2,7 +2,16 @@
 #![cfg_attr(feature = "benchmark", allow(warnings))]
 
 use parking_lot::{Mutex, RwLock};
-use rt_evm_model::types::{Hash, SignedTransaction as SignedTx, H160};
+use rt_evm_model::{
+    codec::ProtocolCodec,
+    traits::BlockStorage,
+    types::{
+        Account, BlockNumber, Hash, SignedTransaction as SignedTx, H160,
+        MAX_BLOCK_GAS_LIMIT, MIN_TRANSACTION_GAS_LIMIT, NIL_HASH, U256,
+        WORLD_STATE_META_KEY,
+    },
+};
+use rt_evm_storage::{MptStore, Storage};
 use ruc::*;
 use std::{
     cmp::Ordering,
@@ -20,7 +29,7 @@ static TX_INDEXER: AtomicU64 = AtomicU64::new(u64::MAX);
 
 pub use TinyMempool as Mempool;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct TinyMempool {
     // if number of tx exceed the capacity, deny new txs
     //
@@ -52,23 +61,28 @@ pub struct TinyMempool {
 
     // set once, and then immutable forever
     capacity: u64,
+
+    // set once, and then immutable forever
     tx_lifetime_in_secs: u64,
+
+    // for tx pre-check
+    tx_gas_cap: U256,
+
+    // for tx pre-check
+    trie_db: Arc<MptStore>,
+
+    // for tx pre-check
+    storage: Arc<Storage>,
 }
 
 impl TinyMempool {
-    // At most 10 minutes for a tx to be alive in mempool,
-    // either to be confirmed, or to be discarded
-    #[cfg(not(feature = "benchmark"))]
-    pub fn new_default() -> Arc<Self> {
-        Self::new(2_0000, 600)
-    }
-
-    #[cfg(feature = "benchmark")]
-    pub fn new_default() -> Arc<Self> {
-        Self::new(200_0000, 600)
-    }
-
-    pub fn new(capacity: u64, tx_lifetime_in_secs: u64) -> Arc<Self> {
+    pub fn new(
+        capacity: u64,
+        tx_lifetime_in_secs: u64,
+        tx_gas_cap: Option<u64>,
+        trie_db: Arc<MptStore>,
+        storage: Arc<Storage>,
+    ) -> Arc<Self> {
         let address_pending_cnter = Arc::new(RwLock::new(map! {}));
 
         let ret = Self {
@@ -79,6 +93,10 @@ impl TinyMempool {
             stop_cleaner: Arc::new(AtomicBool::new(false)),
             capacity,
             tx_lifetime_in_secs,
+
+            tx_gas_cap: tx_gas_cap.unwrap_or(MAX_BLOCK_GAS_LIMIT).into(),
+            trie_db,
+            storage,
         };
         let ret = Arc::new(ret);
 
@@ -130,8 +148,61 @@ impl TinyMempool {
         ret
     }
 
+    // Pre-check the tx before execute it.
+    pub fn tx_pre_check(&self, tx: &SignedTx, signature_checked: bool) -> Result<()> {
+        let utx = &tx.transaction;
+
+        let gas_price = utx.unsigned.gas_price();
+
+        if gas_price == U256::zero() {
+            return Err(eg!("The 'gas price' is zero."));
+        }
+
+        if gas_price >= U256::from(u64::MAX) {
+            return Err(eg!("The 'gas price' exceeds the limition(u64::MAX)."));
+        }
+
+        let gas_limit = *utx.unsigned.gas_limit();
+
+        if gas_limit < MIN_TRANSACTION_GAS_LIMIT.into() {
+            return Err(eg!(
+                "The 'gas limit' less than {}.",
+                MIN_TRANSACTION_GAS_LIMIT
+            ));
+        }
+
+        if gas_limit > self.tx_gas_cap {
+            return Err(eg!(
+                "The 'gas limit' exceeds the gas capacity({}).",
+                self.tx_gas_cap,
+            ));
+        }
+
+        utx.check_hash().c(d!())?;
+
+        if !signature_checked && tx != &SignedTx::try_from(utx.clone()).c(d!())? {
+            return Err(eg!("Signature verify failed"));
+        }
+
+        let acc = self.get_account(tx.sender, None).c(d!())?;
+
+        if &acc.nonce > utx.unsigned.nonce() {
+            return Err(eg!("Invalid nonce"));
+        }
+
+        if acc.balance < gas_price.saturating_mul(MIN_TRANSACTION_GAS_LIMIT.into()) {
+            return Err(eg!("Insufficient balance to cover possible gas"));
+        }
+
+        Ok(())
+    }
+
     // Add a new transaction to mempool
-    pub fn tx_insert(&self, tx: SignedTx) -> Result<()> {
+    #[cfg_attr(feature = "benchmark", allow(dead_code))]
+    pub fn tx_insert(&self, tx: SignedTx, signature_checked: bool) -> Result<()> {
+        #[cfg(not(feature = "benchmark"))]
+        self.tx_pre_check(&tx, signature_checked).c(d!())?;
+
         if self.tx_pending_cnt(None) > self.capacity {
             return Err(eg!("mempool is full"));
         }
@@ -151,19 +222,6 @@ impl TinyMempool {
             .insert(ts!() % self.tx_lifetime_in_secs, idx);
 
         self.txs.lock().insert(idx, tx);
-
-        Ok(())
-    }
-
-    // add some new transactions to mempool
-    pub fn tx_insert_batch(&self, txs: Vec<SignedTx>) -> Result<()> {
-        if self.tx_pending_cnt(None) + (txs.len() as u64) >= self.capacity {
-            return Err(eg!("mempool will be full after this batch"));
-        }
-
-        for tx in txs.into_iter() {
-            self.tx_insert(tx).c(d!())?;
-        }
 
         Ok(())
     }
@@ -227,5 +285,32 @@ impl TinyMempool {
                 }
             }
         });
+    }
+
+    fn get_account(
+        &self,
+        address: H160,
+        number: Option<BlockNumber>,
+    ) -> Result<Account> {
+        let header = if let Some(n) = number {
+            self.storage.get_block_header(n).c(d!())?.c(d!())?
+        } else {
+            self.storage.get_latest_block_header().c(d!())?
+        };
+
+        let state = self
+            .trie_db
+            .trie_restore(&WORLD_STATE_META_KEY, header.state_root)
+            .c(d!())?;
+
+        match state.get(address.as_bytes()).c(d!())? {
+            Some(bytes) => Account::decode(bytes).c(d!()),
+            None => Ok(Account {
+                nonce: U256::zero(),
+                balance: U256::zero(),
+                storage_root: NIL_HASH,
+                code_hash: NIL_HASH,
+            }),
+        }
     }
 }

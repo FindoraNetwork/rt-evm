@@ -4,7 +4,7 @@ pub use block::*;
 pub use evm::{backend::*, ExitError, ExitRevert, ExitSucceed};
 pub use executor::{
     AccessList, AccessListItem, Account, Config, ExecResp, ExecutorContext, ExitReason,
-    TxResp,
+    TxResp, WORLD_STATE_META_KEY,
 };
 pub use primitive::*;
 pub use receipt::*;

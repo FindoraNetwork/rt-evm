@@ -182,12 +182,13 @@ impl RTEvmExecutor {
 
         let mut account = backend.get_account(&sender);
 
-        let old_nonce = account.nonce;
+        let current_nonce = account.nonce;
 
         #[cfg(not(feature = "benchmark"))]
-        if tx.transaction.unsigned.nonce() != &(old_nonce + 1) {
+        if tx.transaction.unsigned.nonce() != &current_nonce {
             let fee_cost = tx_gas_price.saturating_mul(MIN_TRANSACTION_GAS_LIMIT.into());
             account.balance = account.balance.saturating_sub(fee_cost);
+            account.nonce = current_nonce + U256::one();
             backend.save_account(&sender, &account);
             return TxResp::invalid_nonce(MIN_TRANSACTION_GAS_LIMIT, fee_cost);
         }
@@ -234,7 +235,7 @@ impl RTEvmExecutor {
         let code_addr = if tx.transaction.unsigned.action() == &TransactionAction::Create
             && exit.is_succeed()
         {
-            Some(code_address(&tx.sender, &old_nonce))
+            Some(code_address(&tx.sender, &current_nonce))
         } else {
             None
         };
@@ -245,7 +246,7 @@ impl RTEvmExecutor {
         }
 
         let mut account = backend.get_account(&tx.sender);
-        account.nonce = old_nonce + U256::one();
+        account.nonce = current_nonce + U256::one();
 
         // Add remain gas
         if remained_gas != 0 {

@@ -11,7 +11,7 @@ pub use rt_evm_mempool as mempool;
 pub use rt_evm_model as model;
 pub use rt_evm_storage as storage;
 
-pub use model::types::H160 as Address;
+pub use model::types::{transaction::SignedTransaction as SignedTx, H160 as Address};
 
 use api::{run_jsonrpc_server, DefaultAPIAdapter as API};
 use blockmgmt::BlockMgmt;
@@ -54,11 +54,26 @@ pub struct EvmRuntime {
 
 impl EvmRuntime {
     fn new(chain_id: u64, t: MptStore, s: Storage) -> Self {
+        #[cfg(not(feature = "benchmark"))]
+        const MEM_POOL_CAP: u64 = 20_0000;
+
+        #[cfg(feature = "benchmark")]
+        const MEM_POOL_CAP: u64 = 200_0000;
+
+        let trie = Arc::new(t);
+        let storage = Arc::new(s);
+
         Self {
             chain_id,
-            trie: Arc::new(t),
-            storage: Arc::new(s),
-            mempool: Mempool::new_default(),
+            mempool: Mempool::new(
+                MEM_POOL_CAP,
+                600,
+                None,
+                Arc::clone(&trie),
+                Arc::clone(&storage),
+            ),
+            trie,
+            storage,
         }
     }
 
@@ -203,6 +218,11 @@ impl EvmRuntime {
         .c(d!())
     }
 
+    // Check transactions received from other nodes?
+    pub fn check_signed_transaction(&self, tx: &SignedTx) -> Result<()> {
+        self.mempool.tx_pre_check(tx, false)
+    }
+
     pub async fn spawn_jsonrpc_server(
         &self,
         client_version: &str,
@@ -217,7 +237,6 @@ impl EvmRuntime {
 
         let (http_hdr, ws_hdr) = run_jsonrpc_server(
             api,
-            None,
             client_version,
             http_listening_address,
             ws_listening_address,

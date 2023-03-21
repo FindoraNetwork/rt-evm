@@ -218,14 +218,13 @@ pub type ServerHandlers = (Option<HttpServerHandle>, Option<WsServerHandle>);
 
 pub async fn run_jsonrpc_server<Adapter: APIAdapter + 'static>(
     adapter: Arc<Adapter>,
-    gas_cap: Option<u64>,
     client_version: &str,
     http_listening_address: Option<&str>,
     ws_listening_address: Option<&str>,
 ) -> Result<ServerHandlers> {
     let mut ret = (None, None);
 
-    let mut rpc = impls::Web3RpcImpl::new(Arc::clone(&adapter), gas_cap).into_rpc();
+    let mut rpc = impls::Web3RpcImpl::new(Arc::clone(&adapter)).into_rpc();
     let node_rpc = impls::NodeRpcImpl::new(client_version).into_rpc();
     let filter = impls::filter_module(Arc::clone(&adapter)).into_rpc();
 

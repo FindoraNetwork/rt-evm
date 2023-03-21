@@ -4,7 +4,7 @@ use rt_evm_model::{
     traits::{ApplyBackend, Backend, BlockStorage, ExecutorAdapter, TxStorage},
     types::{
         Account, ExecutorContext, Hasher, Log, MerkleRoot, Proposal, H160, H256,
-        NIL_HASH, U256,
+        NIL_HASH, U256, WORLD_STATE_META_KEY,
     },
 };
 use rt_evm_storage::{
@@ -21,7 +21,7 @@ type GlobalState<'a> = WorldStateMpt<'a>;
 
 pub struct RTEvmExecutorAdapter<'a> {
     state: GlobalState<'a>,
-    triedb: &'a MptStore,
+    trie_db: &'a MptStore,
     storage: &'a FunStorage,
     exec_ctx: ExecutorContext,
 }
@@ -173,7 +173,7 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
                     if storage_root == NIL_HASH {
                         Ok(H256::default())
                     } else {
-                        self.triedb
+                        self.trie_db
                             .trie_restore(address.as_bytes(), storage_root)
                             .map(|trie| match trie.get(index.as_bytes()) {
                                 Ok(Some(res)) => H256::from_slice(res.as_ref()),
@@ -213,12 +213,12 @@ impl<'a> ApplyBackend for RTEvmExecutorAdapter<'a> {
                         self.apply(address, basic, code, storage, reset_storage);
                     if is_empty && delete_empty {
                         pnk!(self.state.remove(address.as_bytes()));
-                        self.triedb.trie_remove(address.as_bytes());
+                        self.trie_db.trie_remove(address.as_bytes());
                     }
                 }
                 Apply::Delete { address } => {
                     let _ = self.state.remove(address.as_bytes());
-                    self.triedb.trie_remove(address.as_bytes());
+                    self.trie_db.trie_remove(address.as_bytes());
                 }
             }
         }
@@ -228,20 +228,18 @@ impl<'a> ApplyBackend for RTEvmExecutorAdapter<'a> {
 }
 
 impl<'a> RTEvmExecutorAdapter<'a> {
-    pub const WORLD_STATE_META_KEY: [u8; 1] = [0];
-
     pub fn new(
-        triedb: &'a MptStore,
+        trie_db: &'a MptStore,
         storage: &'a FunStorage,
         exec_ctx: ExecutorContext,
         world_state_cache_size: Option<usize>,
     ) -> Result<Self> {
-        let state = triedb
-            .trie_create(&Self::WORLD_STATE_META_KEY, world_state_cache_size, false)
+        let state = trie_db
+            .trie_create(&WORLD_STATE_META_KEY, world_state_cache_size, false)
             .c(d!())?;
         Ok(RTEvmExecutorAdapter {
             state,
-            triedb,
+            trie_db,
             storage,
             exec_ctx,
         })
@@ -249,17 +247,17 @@ impl<'a> RTEvmExecutorAdapter<'a> {
 
     pub fn from_root(
         state_root: MerkleRoot,
-        triedb: &'a MptStore,
+        trie_db: &'a MptStore,
         storage: &'a FunStorage,
         exec_ctx: ExecutorContext,
     ) -> Result<Self> {
-        let state = triedb
-            .trie_restore(&Self::WORLD_STATE_META_KEY, state_root)
+        let state = trie_db
+            .trie_restore(&WORLD_STATE_META_KEY, state_root)
             .c(d!())?;
 
         Ok(RTEvmExecutorAdapter {
             state,
-            triedb,
+            trie_db,
             storage,
             exec_ctx,
         })
@@ -287,15 +285,15 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         };
 
         let mut storage_trie = if reset_storage {
-            pnk!(self.triedb.trie_create(address.as_bytes(), None, true))
+            pnk!(self.trie_db.trie_create(address.as_bytes(), None, true))
         } else if existing {
             pnk!(
-                self.triedb
+                self.trie_db
                     .trie_restore(address.as_bytes(), old_account.storage_root)
             )
         } else {
             pnk!(
-                self.triedb
+                self.trie_db
                     .trie_create(address.as_bytes(), None, false)
                     .c(d!("{}, {:?}", address, address.as_bytes()))
             )

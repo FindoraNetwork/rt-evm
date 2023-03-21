@@ -7,7 +7,7 @@ use rt_evm_model::{
     types::{
         Account, BigEndianHash, Block, BlockNumber, ExecutorContext, Hash, Header,
         Proposal, Receipt, SignedTransaction, TxResp, H160, MAX_BLOCK_GAS_LIMIT,
-        NIL_HASH, U256,
+        NIL_HASH, U256, WORLD_STATE_META_KEY,
     },
 };
 use rt_evm_storage::{FunStorage, MptStore};
@@ -16,19 +16,19 @@ use std::sync::Arc;
 
 pub struct DefaultAPIAdapter {
     mempool: Arc<Mempool>,
-    trie: Arc<MptStore>,
+    trie_db: Arc<MptStore>,
     storage: Arc<FunStorage>,
 }
 
 impl DefaultAPIAdapter {
     pub fn new(
         mempool: Arc<Mempool>,
-        trie: Arc<MptStore>,
+        trie_db: Arc<MptStore>,
         storage: Arc<FunStorage>,
     ) -> Self {
         Self {
             mempool,
-            trie,
+            trie_db,
             storage,
         }
     }
@@ -46,7 +46,7 @@ impl DefaultAPIAdapter {
 
         RTEvmExecutorAdapter::from_root(
             state_root,
-            &self.trie,
+            &self.trie_db,
             &self.storage,
             ExecutorContext::from(&proposal),
         )
@@ -56,7 +56,7 @@ impl DefaultAPIAdapter {
 #[async_trait]
 impl APIAdapter for DefaultAPIAdapter {
     async fn insert_signed_tx(&self, signed_tx: SignedTransaction) -> Result<()> {
-        self.mempool.tx_insert(signed_tx).c(d!())
+        self.mempool.tx_insert(signed_tx, true).c(d!())
     }
 
     async fn get_block_by_number(&self, height: Option<u64>) -> Result<Option<Block>> {
@@ -144,7 +144,7 @@ impl APIAdapter for DefaultAPIAdapter {
 
         let backend = RTEvmExecutorAdapter::from_root(
             state_root,
-            &self.trie,
+            &self.trie_db,
             &self.storage,
             exec_ctx,
         )?;
@@ -166,8 +166,8 @@ impl APIAdapter for DefaultAPIAdapter {
         state_root: Hash,
     ) -> Result<Vec<u8>> {
         let state_trie_tree = self
-            .trie
-            .trie_restore(&RTEvmExecutorAdapter::WORLD_STATE_META_KEY, state_root)
+            .trie_db
+            .trie_restore(&WORLD_STATE_META_KEY, state_root)
             .c(d!())?;
 
         let raw_account = state_trie_tree
@@ -178,7 +178,7 @@ impl APIAdapter for DefaultAPIAdapter {
         let account = Account::decode(raw_account).unwrap();
 
         let storage_trie_tree = self
-            .trie
+            .trie_db
             .trie_restore(address.as_bytes(), account.storage_root)
             .c(d!())?;
 

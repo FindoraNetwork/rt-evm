@@ -148,68 +148,25 @@ impl TinyMempool {
         ret
     }
 
-    // Pre-check the tx before execute it.
-    pub fn tx_pre_check(&self, tx: &SignedTx, signature_checked: bool) -> Result<()> {
-        let utx = &tx.transaction;
-
-        let gas_price = utx.unsigned.gas_price();
-
-        if gas_price == U256::zero() {
-            return Err(eg!("The 'gas price' is zero."));
-        }
-
-        if gas_price >= U256::from(u64::MAX) {
-            return Err(eg!("The 'gas price' exceeds the limition(u64::MAX)."));
-        }
-
-        let gas_limit = *utx.unsigned.gas_limit();
-
-        if gas_limit < MIN_TRANSACTION_GAS_LIMIT.into() {
-            return Err(eg!(
-                "The 'gas limit' less than {}.",
-                MIN_TRANSACTION_GAS_LIMIT
-            ));
-        }
-
-        if gas_limit > self.tx_gas_cap {
-            return Err(eg!(
-                "The 'gas limit' exceeds the gas capacity({}).",
-                self.tx_gas_cap,
-            ));
-        }
-
-        utx.check_hash().c(d!())?;
-
-        if !signature_checked && tx != &SignedTx::try_from(utx.clone()).c(d!())? {
-            return Err(eg!("Signature verify failed"));
-        }
-
-        let acc = self.get_account(tx.sender, None).c(d!())?;
-
-        if &acc.nonce > utx.unsigned.nonce() {
-            return Err(eg!("Invalid nonce"));
-        }
-
-        if acc.balance < gas_price.saturating_mul(MIN_TRANSACTION_GAS_LIMIT.into()) {
-            return Err(eg!("Insufficient balance to cover possible gas"));
-        }
-
-        if self.storage.get_tx_by_hash(&utx.hash).c(d!())?.is_some() {
-            return Err(eg!("Historical transaction detected"));
-        }
-
-        Ok(())
-    }
-
     // Add a new transaction to mempool
     #[cfg_attr(feature = "benchmark", allow(dead_code))]
     pub fn tx_insert(&self, tx: SignedTx, signature_checked: bool) -> Result<()> {
-        #[cfg(not(feature = "benchmark"))]
-        self.tx_pre_check(&tx, signature_checked).c(d!())?;
-
         if self.tx_pending_cnt(None) > self.capacity {
             return Err(eg!("mempool is full"));
         }
+
+        if self
+            .address_pending_cnter
+            .read()
+            .get(&tx.sender)
+            .and_then(|m| m.get(&tx.transaction.hash))
+            .is_some()
+        {
+            return Err(eg!("Already cached in mempool."));
+        }
+
+        #[cfg(not(feature = "benchmark"))]
+        self.tx_pre_check(&tx, signature_checked).c(d!())?;
 
         self.broadcast_queue.lock().push(tx.clone());
 
@@ -289,6 +246,59 @@ impl TinyMempool {
                 }
             }
         });
+    }
+
+    // Pre-check the tx before execute it.
+    pub fn tx_pre_check(&self, tx: &SignedTx, signature_checked: bool) -> Result<()> {
+        let utx = &tx.transaction;
+
+        let gas_price = utx.unsigned.gas_price();
+
+        if gas_price == U256::zero() {
+            return Err(eg!("The 'gas price' is zero."));
+        }
+
+        if gas_price >= U256::from(u64::MAX) {
+            return Err(eg!("The 'gas price' exceeds the limition(u64::MAX)."));
+        }
+
+        let gas_limit = *utx.unsigned.gas_limit();
+
+        if gas_limit < MIN_TRANSACTION_GAS_LIMIT.into() {
+            return Err(eg!(
+                "The 'gas limit' less than {}.",
+                MIN_TRANSACTION_GAS_LIMIT
+            ));
+        }
+
+        if gas_limit > self.tx_gas_cap {
+            return Err(eg!(
+                "The 'gas limit' exceeds the gas capacity({}).",
+                self.tx_gas_cap,
+            ));
+        }
+
+        utx.check_hash().c(d!())?;
+
+        if !signature_checked && tx != &SignedTx::try_from(utx.clone()).c(d!())? {
+            return Err(eg!("Signature verify failed"));
+        }
+
+        let acc = self.get_account(tx.sender, None).c(d!())?;
+
+        if &acc.nonce > utx.unsigned.nonce() {
+            return Err(eg!("Invalid nonce"));
+        }
+
+        if acc.balance < gas_price.saturating_mul(MIN_TRANSACTION_GAS_LIMIT.into()) {
+            return Err(eg!("Insufficient balance to cover possible gas"));
+        }
+
+        if self.storage.get_tx_by_hash(&utx.hash).c(d!())?.is_some() {
+            return Err(eg!("Historical transaction detected"));
+        }
+
+        Ok(())
     }
 
     fn get_account(

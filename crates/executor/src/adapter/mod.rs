@@ -9,7 +9,7 @@ use rt_evm_model::{
 };
 use rt_evm_storage::{
     trie_db::{MptOnce, MptStore},
-    FunStorage,
+    Storage,
 };
 use ruc::*;
 use std::mem;
@@ -22,7 +22,7 @@ type GlobalState<'a> = WorldStateMpt<'a>;
 pub struct RTEvmExecutorAdapter<'a> {
     state: GlobalState<'a>,
     trie_db: &'a MptStore,
-    storage: &'a FunStorage,
+    storage: &'a Storage,
     exec_ctx: ExecutorContext,
 }
 
@@ -230,7 +230,7 @@ impl<'a> ApplyBackend for RTEvmExecutorAdapter<'a> {
 impl<'a> RTEvmExecutorAdapter<'a> {
     pub fn new(
         trie_db: &'a MptStore,
-        storage: &'a FunStorage,
+        storage: &'a Storage,
         exec_ctx: ExecutorContext,
         world_state_cache_size: Option<usize>,
     ) -> Result<Self> {
@@ -248,7 +248,7 @@ impl<'a> RTEvmExecutorAdapter<'a> {
     pub fn from_root(
         state_root: MerkleRoot,
         trie_db: &'a MptStore,
-        storage: &'a FunStorage,
+        storage: &'a Storage,
         exec_ctx: ExecutorContext,
     ) -> Result<Self> {
         let state = trie_db

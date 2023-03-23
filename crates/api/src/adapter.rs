@@ -10,21 +10,21 @@ use rt_evm_model::{
         NIL_HASH, U256, WORLD_STATE_META_KEY,
     },
 };
-use rt_evm_storage::{FunStorage, MptStore};
+use rt_evm_storage::{MptStore, Storage};
 use ruc::*;
 use std::sync::Arc;
 
 pub struct DefaultAPIAdapter {
     mempool: Arc<Mempool>,
     trie_db: Arc<MptStore>,
-    storage: Arc<FunStorage>,
+    storage: Arc<Storage>,
 }
 
 impl DefaultAPIAdapter {
     pub fn new(
         mempool: Arc<Mempool>,
         trie_db: Arc<MptStore>,
-        storage: Arc<FunStorage>,
+        storage: Arc<Storage>,
     ) -> Self {
         Self {
             mempool,

@@ -59,20 +59,13 @@ pub struct TinyMempool {
     // if `true`, the background thread will exit itself.
     stop_cleaner: Arc<AtomicBool>,
 
-    // set once, and then immutable forever
-    capacity: u64,
-
-    // set once, and then immutable forever
-    tx_lifetime_in_secs: u64,
-
-    // for tx pre-check
-    tx_gas_cap: U256,
-
     // for tx pre-check
     trie_db: Arc<MptStore>,
 
     // for tx pre-check
     storage: Arc<Storage>,
+
+    cfg: TinyMempoolCfg,
 }
 
 impl TinyMempool {
@@ -91,12 +84,13 @@ impl TinyMempool {
             broadcast_queue: Arc::new(Mutex::new(vec![])),
             address_pending_cnter,
             stop_cleaner: Arc::new(AtomicBool::new(false)),
-            capacity,
-            tx_lifetime_in_secs,
-
-            tx_gas_cap: tx_gas_cap.unwrap_or(MAX_BLOCK_GAS_LIMIT).into(),
             trie_db,
             storage,
+            cfg: TinyMempoolCfg {
+                capacity,
+                tx_lifetime_in_secs,
+                tx_gas_cap: tx_gas_cap.unwrap_or(MAX_BLOCK_GAS_LIMIT).into(),
+            },
         };
         let ret = Arc::new(ret);
 
@@ -151,7 +145,7 @@ impl TinyMempool {
     // Add a new transaction to mempool
     #[cfg_attr(feature = "benchmark", allow(dead_code))]
     pub fn tx_insert(&self, tx: SignedTx, signature_checked: bool) -> Result<()> {
-        if self.tx_pending_cnt(None) > self.capacity {
+        if self.tx_pending_cnt(None) > self.cfg.capacity {
             return Err(eg!("Mempool is full"));
         }
 
@@ -180,7 +174,7 @@ impl TinyMempool {
 
         self.tx_lifetime_fields
             .lock()
-            .insert(ts!() % self.tx_lifetime_in_secs, idx);
+            .insert(ts!() % self.cfg.tx_lifetime_in_secs, idx);
 
         self.txs.lock().insert(idx, tx);
 
@@ -271,10 +265,10 @@ impl TinyMempool {
             ));
         }
 
-        if gas_limit > self.tx_gas_cap {
+        if gas_limit > self.cfg.tx_gas_cap {
             return Err(eg!(
                 "The 'gas limit' exceeds the gas capacity({})",
-                self.tx_gas_cap,
+                self.cfg.tx_gas_cap,
             ));
         }
 
@@ -327,4 +321,12 @@ impl TinyMempool {
             }),
         }
     }
+}
+
+// Set once, and then immutable forever ?
+#[derive(Clone)]
+struct TinyMempoolCfg {
+    capacity: u64,
+    tx_lifetime_in_secs: u64,
+    tx_gas_cap: U256, // for tx pre-check
 }

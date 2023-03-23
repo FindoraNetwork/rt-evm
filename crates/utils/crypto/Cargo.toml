@@ -5,7 +5,7 @@ authors = []
 edition = "2021"
 
 [dependencies]
-ophelia = "0.3"
-ophelia-secp256k1 = "0.3"
+ophelia = { workspace = true }
+ophelia-secp256k1 = { workspace = true }
 
 [dev-dependencies]

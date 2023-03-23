@@ -4,24 +4,23 @@ name = "rt-evm-executor"
 version = "0.1.0"
 
 [dependencies]
-ruc = { version = "4.1.0", features = ["crypto"] }
-rlp = "0.5"
-evm = "0.37"
+ruc = { workspace = true }
+rlp = { workspace = true }
+evm = { workspace = true }
 
 # deps of precompiles
-az = "1.2"
-bn = { package = "substrate-bn", version = "0.6" }
-rug = "1.19"
-sha2 = "0.10"
-ripemd = "0.1"
+az = { workspace = true }
+bn = { workspace = true }
+rug = { workspace = true }
+sha2 = { workspace = true }
+ripemd = { workspace = true }
 
-rt-evm-model = { path = "../model" }
-rt-evm-crypto = { path = "../utils/crypto" }
-rt-evm-storage = { path = "../storage" }
+rt-evm-model = { workspace = true }
+rt-evm-crypto = { workspace = true }
+rt-evm-storage = { workspace = true }
 
 [dev-dependencies]
 
 [features]
 default = []
-
 benchmark = []

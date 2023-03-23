@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ruc = "4.1"
-parking_lot = "0.12.1"
+ruc = { workspace = true }
+parking_lot = { workspace = true }
+serde = { workspace = true }
 
-rt-evm-model = { path = "../model" }
-rt-evm-storage = { path = "../storage" }
+rt-evm-model = { workspace = true }
+rt-evm-storage = { workspace = true }
 
 [features]
 default = []
-
 benchmark = []

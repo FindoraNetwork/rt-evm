@@ -4,29 +4,26 @@ name = "rt-evm-storage"
 version = "0.1.0"
 
 [dependencies]
-ruc = "4.1"
-once_cell = "1.17.1"
-parking_lot = "0.12"
-rayon = "1.7.0"
+ruc = { workspace = true }
+once_cell = { workspace = true }
+parking_lot = { workspace = true }
+rayon = { workspace = true }
 
-sp-trie = "19.0.0"
-sp-trie-db = { package = "trie-db", version = "0.26.0" }
-hash-db = "0.15.2"
-keccak-hasher = "0.15.3"
+sp-trie = { workspace = true }
+sp-trie-db = { workspace = true }
+hash-db = { workspace = true }
+keccak-hasher = { workspace = true }
 
-moka = "0.10.0"
-serde = { version = "1.0", features = ["derive"] }
-bcs = "0.1.5"
+moka = { workspace = true }
+serde = { workspace = true }
+bcs = { workspace = true }
 
-# vsdb = { path = "../../vsdb/wrappers", features = ["extra_types"] }
-vsdb = { version = "0.51.1", features = ["extra_types"] }
+vsdb = { workspace = true }
 
-rt-evm-model = { path = "../model" }
-rt-evm-crypto = { path = "../utils/crypto" }
+rt-evm-model = { workspace = true }
 
 [dev-dependencies]
 
 [features]
 default = []
-
 benchmark = []

@@ -4,26 +4,26 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ruc = "4.1"
-arc-swap = "1.6"
-async-trait = "0.1"
-bcs = "0.1.5"
-bytes = { version = "1.4", features = ["serde"] }
-derive_more = "0.99"
-ethereum = { version = "0.14", features = ["with-codec", "with-serde"] }
-ethereum-types = { version = "0.14", features = ["arbitrary", "codec", "rlp", "serialize", "std"] }
-evm = { version = "0.37", features = ["with-serde"] }
-faster-hex = "0.6"
-ophelia = "0.3"
-ophelia-secp256k1 = "0.3"
-rlp = "0.5"
-rlp-derive = "0.1"
-serde = { version = "1.0", features = ["derive"] }
-once_cell = "1.17.1"
+ruc = { workspace = true }
+arc-swap = { workspace = true }
+async-trait = { workspace = true }
+bcs = { workspace = true }
+bytes = { workspace = true }
+derive_more = { workspace = true }
+ethereum = { workspace = true }
+ethereum-types = { workspace = true }
+evm = { workspace = true }
+faster-hex = { workspace = true }
+ophelia = { workspace = true }
+ophelia-secp256k1 = { workspace = true }
+rlp = { workspace = true }
+rlp-derive = { workspace = true }
+serde = { workspace = true }
+once_cell = { workspace = true }
 
-hash-db = "0.15.2"
-keccak-hasher = "0.15.3"
+hash-db = { workspace = true }
+keccak-hasher = { workspace = true }
 
-rt-evm-crypto = { path = "../utils/crypto" }
+rt-evm-crypto = { workspace = true }
 
 [dev-dependencies]

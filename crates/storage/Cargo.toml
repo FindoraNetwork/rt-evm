@@ -9,16 +9,12 @@ once_cell = { workspace = true }
 parking_lot = { workspace = true }
 rayon = { workspace = true }
 
-sp-trie = { workspace = true }
-sp-trie-db = { workspace = true }
-hash-db = { workspace = true }
-keccak-hasher = { workspace = true }
-
 moka = { workspace = true }
 serde = { workspace = true }
 bcs = { workspace = true }
 
 vsdb = { workspace = true }
+trie_db_impl_vsdb = { workspace = true }
 
 rt-evm-model = { workspace = true }
 

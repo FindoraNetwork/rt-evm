@@ -44,7 +44,7 @@ impl<'a> ExecutorAdapter for RTEvmExecutorAdapter<'a> {
     }
 
     fn commit(&mut self) -> MerkleRoot {
-        self.state.commit()
+        self.state.commit().into()
     }
 
     fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
@@ -174,7 +174,7 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
                         Ok(H256::default())
                     } else {
                         self.trie_db
-                            .trie_restore(address.as_bytes(), storage_root)
+                            .trie_restore(address.as_bytes(), storage_root.into())
                             .map(|trie| match trie.get(index.as_bytes()) {
                                 Ok(Some(res)) => H256::from_slice(res.as_ref()),
                                 _ => H256::default(),
@@ -252,7 +252,7 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         exec_ctx: ExecutorContext,
     ) -> Result<Self> {
         let state = trie_db
-            .trie_restore(&WORLD_STATE_META_KEY, state_root)
+            .trie_restore(&WORLD_STATE_META_KEY, state_root.into())
             .c(d!())?;
 
         Ok(RTEvmExecutorAdapter {
@@ -289,7 +289,7 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         } else if existing {
             pnk!(
                 self.trie_db
-                    .trie_restore(address.as_bytes(), old_account.storage_root)
+                    .trie_restore(address.as_bytes(), old_account.storage_root.into())
             )
         } else {
             pnk!(
@@ -307,7 +307,7 @@ impl<'a> RTEvmExecutorAdapter<'a> {
             nonce: basic.nonce,
             balance: basic.balance,
             code_hash: old_account.code_hash,
-            storage_root: storage_trie.commit(),
+            storage_root: storage_trie.commit().into(),
         };
 
         if let Some(c) = code {
@@ -328,6 +328,6 @@ impl<'a> RTEvmExecutorAdapter<'a> {
     }
 
     pub fn commit(&mut self) -> MerkleRoot {
-        self.state.commit()
+        self.state.commit().into()
     }
 }

@@ -1,9 +1,8 @@
 #![deny(warnings)]
 #![cfg_attr(feature = "benchmark", allow(warnings))]
 
-pub mod trie_db;
-
 pub use trie_db::MptStore;
+pub use trie_db_impl_vsdb as trie_db;
 pub use FunStorage as Storage;
 
 use moka::sync::Cache as Lru;

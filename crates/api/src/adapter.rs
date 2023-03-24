@@ -164,7 +164,7 @@ impl APIAdapter for DefaultAPIAdapter {
     ) -> Result<Vec<u8>> {
         let state_trie_tree = self
             .trie_db
-            .trie_restore(&WORLD_STATE_META_KEY, state_root.into())
+            .trie_restore(&WORLD_STATE_META_KEY, None, state_root.into())
             .c(d!())?;
 
         let raw_account = state_trie_tree
@@ -176,7 +176,7 @@ impl APIAdapter for DefaultAPIAdapter {
 
         let storage_trie_tree = self
             .trie_db
-            .trie_restore(address.as_bytes(), account.storage_root.into())
+            .trie_restore(address.as_bytes(), None, account.storage_root.into())
             .c(d!())?;
 
         let hash: Hash = BigEndianHash::from_uint(&position);

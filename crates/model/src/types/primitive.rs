@@ -4,11 +4,9 @@ pub use ethereum_types::{
     BigEndianHash, Bloom, Public, Secret, Signature, H128, H160, H256, H512, H520, H64,
     U128, U256, U512, U64,
 };
-use hash_db::Hasher as _;
-use keccak_hasher::KeccakHasher;
 use ophelia::{PublicKey, UncompressedPublicKey};
 use ophelia_secp256k1::Secp256k1PublicKey;
-use ruc::*;
+use ruc::{crypto, *};
 use serde::{de, Deserialize, Serialize};
 use std::{fmt, result::Result as StdResult, str::FromStr};
 
@@ -16,7 +14,7 @@ pub struct Hasher;
 
 impl Hasher {
     pub fn digest(data: impl AsRef<[u8]>) -> Hash {
-        Hash::from(KeccakHasher::hash(data.as_ref()))
+        crypto::hash(data.as_ref()).into()
     }
 }
 

@@ -308,7 +308,7 @@ impl TinyMempool {
 
         let state = self
             .trie_db
-            .trie_restore(&WORLD_STATE_META_KEY, header.state_root.into())
+            .trie_restore(&WORLD_STATE_META_KEY, None, header.state_root.into())
             .c(d!())?;
 
         match state.get(address.as_bytes()).c(d!())? {

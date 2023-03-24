@@ -21,9 +21,6 @@ rlp-derive = { workspace = true }
 serde = { workspace = true }
 once_cell = { workspace = true }
 
-hash-db = { workspace = true }
-keccak-hasher = { workspace = true }
-
 rt-evm-crypto = { workspace = true }
 
 [dev-dependencies]

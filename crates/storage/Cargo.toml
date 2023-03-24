@@ -14,7 +14,7 @@ serde = { workspace = true }
 bcs = { workspace = true }
 
 vsdb = { workspace = true }
-trie_db_impl_vsdb = { workspace = true }
+vsdb_trie_db = { workspace = true }
 
 rt-evm-model = { workspace = true }
 

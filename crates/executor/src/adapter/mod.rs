@@ -16,11 +16,11 @@ use std::mem;
 
 const GET_BLOCK_HASH_NUMBER_RANGE: u64 = 256;
 
-type WorldStateMpt<'a> = MptOnce<'a>;
-type GlobalState<'a> = WorldStateMpt<'a>;
+type WorldStateMpt = MptOnce;
+type GlobalState = WorldStateMpt;
 
 pub struct RTEvmExecutorAdapter<'a> {
-    state: GlobalState<'a>,
+    state: GlobalState,
     trie_db: &'a MptStore,
     storage: &'a Storage,
     exec_ctx: ExecutorContext,
@@ -174,7 +174,7 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
                         Ok(H256::default())
                     } else {
                         self.trie_db
-                            .trie_restore(address.as_bytes(), storage_root.into())
+                            .trie_restore(address.as_bytes(), None, storage_root.into())
                             .map(|trie| match trie.get(index.as_bytes()) {
                                 Ok(Some(res)) => H256::from_slice(res.as_ref()),
                                 _ => H256::default(),
@@ -252,7 +252,7 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         exec_ctx: ExecutorContext,
     ) -> Result<Self> {
         let state = trie_db
-            .trie_restore(&WORLD_STATE_META_KEY, state_root.into())
+            .trie_restore(&WORLD_STATE_META_KEY, None, state_root.into())
             .c(d!())?;
 
         Ok(RTEvmExecutorAdapter {
@@ -287,10 +287,11 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         let mut storage_trie = if reset_storage {
             pnk!(self.trie_db.trie_create(address.as_bytes(), None, true))
         } else if existing {
-            pnk!(
-                self.trie_db
-                    .trie_restore(address.as_bytes(), old_account.storage_root.into())
-            )
+            pnk!(self.trie_db.trie_restore(
+                address.as_bytes(),
+                None,
+                old_account.storage_root.into()
+            ))
         } else {
             pnk!(
                 self.trie_db

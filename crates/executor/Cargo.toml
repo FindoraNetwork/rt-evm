@@ -19,8 +19,21 @@ rt-evm-model = { workspace = true }
 rt-evm-crypto = { workspace = true }
 rt-evm-storage = { workspace = true }
 
+rand = { workspace = true, optional = true }
+ed25519-zebra = { workspace = true, optional = true }
+bcs = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+vsdb_trie_map = { workspace = true, optional = true }
+
 [dev-dependencies]
 
 [features]
 default = []
 benchmark = []
+
+poa = ["pos", "rand", "ed25519-zebra"]
+pos = ["bcs", "serde", "vsdb_trie_map"]
+
+bcs_codec = ["pos", "vsdb_trie_map/bcs_codec"]
+json_codec = ["pos", "vsdb_trie_map/json_codec"]
+msgpack_codec = ["pos", "vsdb_trie_map/msgpack_codec"]

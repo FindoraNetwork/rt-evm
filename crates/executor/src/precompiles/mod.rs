@@ -10,6 +10,12 @@ mod rsa;
 mod secp256r1;
 mod sha256;
 
+#[cfg(feature = "poa")]
+mod poa;
+
+#[cfg(feature = "pos")]
+mod pos;
+
 use std::collections::BTreeMap;
 
 use bn::{AffineG1, Fq, Fr, Group, G1};
@@ -78,10 +84,23 @@ const fn precompile_address(addr: u8) -> H160 {
     ])
 }
 
+#[allow(warnings)]
 pub fn build_precompile_set() -> BTreeMap<H160, PrecompileFn> {
-    precompiles!(
+    let mut ret = precompiles!(
         EcRecover, Sha256, Ripemd160, Identity, ModExp, EcAdd, EcMul, EcPairing, Blake2F
-    )
+    );
+
+    #[cfg(feature = "poa")]
+    {
+        ret.insert(TODO);
+    }
+
+    #[cfg(feature = "pos")]
+    {
+        ret.insert(TODO);
+    }
+
+    ret
 }
 
 pub(crate) fn read_point(input: &[u8], start: usize) -> Result<G1, PrecompileFailure> {

@@ -28,6 +28,9 @@ crate-type = ["bin"]
 default = ["vsdb_bcs_codec"]
 benchmark = ["rt-evm-api/benchmark", "rt-evm-executor/benchmark", "rt-evm-mempool/benchmark"]
 
+poa = ["rt-evm-executor/poa"]
+pos = ["rt-evm-executor/pos"]
+
 vsdb_bcs_codec = ["rt-evm-storage/vsdb_bcs_codec"]
 vsdb_json_codec = ["rt-evm-storage/vsdb_json_codec"]
 vsdb_msgpack_codec = ["rt-evm-storage/vsdb_msgpack_codec"]
@@ -93,3 +96,7 @@ vsdb = { version = "0.54.0", features = ["extra_types"] }
 
 vsdb_trie_db = "0.3.0"
 # vsdb_trie_db = { path = "../vsdb/utils/trie_db" }
+
+rand = "0.8"
+vsdb_trie_map = "0.3.0"
+ed25519-zebra = { version = "3.1.0", features = ["serde"] }

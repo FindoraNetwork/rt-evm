@@ -21,5 +21,9 @@ rt-evm-model = { workspace = true }
 [dev-dependencies]
 
 [features]
-default = []
+default = ["vsdb_bcs_codec"]
 benchmark = []
+
+vsdb_bcs_codec = ["vsdb/bcs_codec"]
+vsdb_json_codec = ["vsdb/json_codec"]
+vsdb_msgpack_codec = ["vsdb/msgpack_codec"]

@@ -26,7 +26,7 @@ use model::{
 use once_cell::sync::Lazy;
 use ruc::*;
 use std::{fs, io::ErrorKind, mem::size_of, path::PathBuf, sync::Arc};
-use storage::{get_account_by_trie_db, save_account_by_trie_db, MptStore, Storage};
+use storage::{get_account_by_backend, save_account_by_backend, MptStore, Storage};
 
 static META_PATH: Lazy<MetaPath> = Lazy::new(|| {
     let mut trie_db = vsdb::vsdb_get_custom_dir().to_path_buf();
@@ -264,12 +264,12 @@ impl EvmRuntime {
 
     /// Useful when other modules need to check the account balance
     pub fn get_account(&self, address: Address) -> Result<Account> {
-        get_account_by_trie_db(&self.trie_db, &self.storage, address, None).c(d!())
+        get_account_by_backend(&self.trie_db, &self.storage, address, None).c(d!())
     }
 
     /// Useful when other modules need to change the account balance
     pub fn save_account(&self, address: Address, account: &Account) -> Result<()> {
-        save_account_by_trie_db(&self.trie_db, &self.storage, address, account).c(d!())
+        save_account_by_backend(&self.trie_db, &self.storage, address, account).c(d!())
     }
 }
 

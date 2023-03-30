@@ -377,7 +377,7 @@ impl TxStorage for FunStorage {
     }
 }
 
-pub fn get_account_by_trie_db(
+pub fn get_account_by_backend(
     trie_db: &MptStore,
     storage: &Storage,
     address: H160,
@@ -408,7 +408,7 @@ pub fn get_account_by_state(state: &MptOnce, address: H160) -> Result<Account> {
     }
 }
 
-pub fn save_account_by_trie_db(
+pub fn save_account_by_backend(
     trie_db: &MptStore,
     storage: &Storage,
     address: H160,

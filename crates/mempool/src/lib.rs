@@ -9,7 +9,7 @@ use rt_evm_model::{
         MAX_BLOCK_GAS_LIMIT, MIN_TRANSACTION_GAS_LIMIT, U256,
     },
 };
-use rt_evm_storage::{get_account_by_trie_db, MptStore, Storage};
+use rt_evm_storage::{get_account_by_backend, MptStore, Storage};
 use ruc::*;
 use std::{
     cmp::Ordering,
@@ -298,7 +298,7 @@ impl TinyMempool {
         address: H160,
         number: Option<BlockNumber>,
     ) -> Result<Account> {
-        get_account_by_trie_db(&self.trie_db, &self.storage, address, number).c(d!())
+        get_account_by_backend(&self.trie_db, &self.storage, address, number).c(d!())
     }
 }
 

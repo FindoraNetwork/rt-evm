@@ -9,14 +9,17 @@ use moka::sync::Cache as Lru;
 use parking_lot::RwLock;
 use rayon::prelude::*;
 use rt_evm_model::{
+    codec::ProtocolCodec,
     traits::{BlockStorage, TxStorage},
     types::{
-        Block, BlockNumber, FatBlock, Hash, Header, Receipt, SignedTransaction, H256,
+        Account, Block, BlockNumber, FatBlock, Hash, Header, Receipt, SignedTransaction,
+        H160, H256, NIL_HASH, U256, WORLD_STATE_META_KEY,
     },
 };
 use ruc::*;
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
+use trie_db::MptOnce;
 use vsdb::{MapxOrd, MapxRaw};
 
 const BATCH_LIMIT: usize = 1000;
@@ -372,4 +375,60 @@ impl TxStorage for FunStorage {
             Ok(None)
         }
     }
+}
+
+pub fn get_account_by_trie_db(
+    trie_db: &MptStore,
+    storage: &Storage,
+    address: H160,
+    number: Option<BlockNumber>,
+) -> Result<Account> {
+    let header = if let Some(n) = number {
+        storage.get_block_header(n).c(d!())?.c(d!())?
+    } else {
+        storage.get_latest_block_header().c(d!())?
+    };
+
+    let state = trie_db
+        .trie_restore(&WORLD_STATE_META_KEY, None, header.state_root.into())
+        .c(d!())?;
+
+    get_account_by_state(&state, address).c(d!())
+}
+
+pub fn get_account_by_state(state: &MptOnce, address: H160) -> Result<Account> {
+    match state.get(address.as_bytes()).c(d!())? {
+        Some(bytes) => Account::decode(bytes).c(d!()),
+        None => Ok(Account {
+            nonce: U256::zero(),
+            balance: U256::zero(),
+            storage_root: NIL_HASH,
+            code_hash: NIL_HASH,
+        }),
+    }
+}
+
+pub fn save_account_by_trie_db(
+    trie_db: &MptStore,
+    storage: &Storage,
+    address: H160,
+    account: &Account,
+) -> Result<()> {
+    let header = storage.get_latest_block_header().c(d!())?;
+    let mut state = trie_db
+        .trie_restore(&WORLD_STATE_META_KEY, None, header.state_root.into())
+        .c(d!())?;
+
+    save_account_by_state(&mut state, address, account).c(d!())
+}
+
+pub fn save_account_by_state(
+    state: &mut MptOnce,
+    address: H160,
+    account: &Account,
+) -> Result<()> {
+    account
+        .encode()
+        .c(d!())
+        .and_then(|acc| state.insert(address.as_bytes(), &acc).c(d!()))
 }

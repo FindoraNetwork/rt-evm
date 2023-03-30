@@ -109,7 +109,12 @@ impl APIAdapter for DefaultAPIAdapter {
         address: H160,
         number: Option<BlockNumber>,
     ) -> Result<Account> {
-        match self.evm_backend(number).await?.get(address.as_bytes()) {
+        match self
+            .evm_backend(number)
+            .await
+            .c(d!())?
+            .get(address.as_bytes())
+        {
             Some(bytes) => Account::decode(bytes),
             None => Ok(Account {
                 nonce: U256::zero(),

@@ -18,9 +18,9 @@ pub trait ExecutorAdapter {
 
     fn get_ctx(&self) -> ExecutorContext;
 
-    fn get_account(&self, address: &H160) -> Account;
+    fn get_account(&self, address: H160) -> Account;
 
-    fn save_account(&mut self, address: &H160, account: &Account);
+    fn save_account(&mut self, address: H160, account: &Account);
 }
 
 pub trait Executor: Send + Sync {

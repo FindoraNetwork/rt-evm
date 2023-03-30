@@ -8,6 +8,7 @@ use rt_evm_model::{
     },
 };
 use rt_evm_storage::{
+    get_account_by_state, save_account_by_state,
     trie_db::{MptOnce, MptStore},
     Storage,
 };
@@ -51,22 +52,12 @@ impl<'a> ExecutorAdapter for RTEvmExecutorAdapter<'a> {
         self.state.get(key).ok().flatten()
     }
 
-    fn get_account(&self, address: &H160) -> Account {
-        if let Ok(Some(raw)) = self.state.get(address.as_bytes()) {
-            return pnk!(Account::decode(raw));
-        }
-
-        Account {
-            nonce: U256::zero(),
-            balance: U256::zero(),
-            storage_root: NIL_HASH,
-            code_hash: NIL_HASH,
-        }
+    fn get_account(&self, address: H160) -> Account {
+        pnk!(get_account_by_state(&self.state, address))
     }
 
-    fn save_account(&mut self, address: &H160, account: &Account) {
-        let acc = pnk!(account.encode());
-        pnk!(self.state.insert(address.as_bytes(), &acc))
+    fn save_account(&mut self, address: H160, account: &Account) {
+        pnk!(save_account_by_state(&mut self.state, address, account))
     }
 }
 

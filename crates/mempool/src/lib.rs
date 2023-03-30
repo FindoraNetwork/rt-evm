@@ -3,15 +3,13 @@
 
 use parking_lot::{Mutex, RwLock};
 use rt_evm_model::{
-    codec::ProtocolCodec,
-    traits::{BlockStorage, TxStorage},
+    traits::TxStorage,
     types::{
         Account, BlockNumber, Hash, SignedTransaction as SignedTx, H160,
-        MAX_BLOCK_GAS_LIMIT, MIN_TRANSACTION_GAS_LIMIT, NIL_HASH, U256,
-        WORLD_STATE_META_KEY,
+        MAX_BLOCK_GAS_LIMIT, MIN_TRANSACTION_GAS_LIMIT, U256,
     },
 };
-use rt_evm_storage::{MptStore, Storage};
+use rt_evm_storage::{get_account_by_trie_db, MptStore, Storage};
 use ruc::*;
 use std::{
     cmp::Ordering,
@@ -300,26 +298,7 @@ impl TinyMempool {
         address: H160,
         number: Option<BlockNumber>,
     ) -> Result<Account> {
-        let header = if let Some(n) = number {
-            self.storage.get_block_header(n).c(d!())?.c(d!())?
-        } else {
-            self.storage.get_latest_block_header().c(d!())?
-        };
-
-        let state = self
-            .trie_db
-            .trie_restore(&WORLD_STATE_META_KEY, None, header.state_root.into())
-            .c(d!())?;
-
-        match state.get(address.as_bytes()).c(d!())? {
-            Some(bytes) => Account::decode(bytes).c(d!()),
-            None => Ok(Account {
-                nonce: U256::zero(),
-                balance: U256::zero(),
-                storage_root: NIL_HASH,
-                code_hash: NIL_HASH,
-            }),
-        }
+        get_account_by_trie_db(&self.trie_db, &self.storage, address, number).c(d!())
     }
 }
 

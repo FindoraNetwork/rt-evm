@@ -203,13 +203,13 @@ impl<'a> ApplyBackend for RTEvmExecutorAdapter<'a> {
                     let is_empty =
                         self.apply(address, basic, code, storage, reset_storage);
                     if is_empty && delete_empty {
-                        pnk!(self.state.remove(address.as_bytes()));
                         self.trie_db.trie_remove(address.as_bytes());
+                        pnk!(self.state.remove(address.as_bytes()));
                     }
                 }
                 Apply::Delete { address } => {
-                    let _ = self.state.remove(address.as_bytes());
                     self.trie_db.trie_remove(address.as_bytes());
+                    pnk!(self.state.remove(address.as_bytes()));
                 }
             }
         }
@@ -275,21 +275,23 @@ impl<'a> RTEvmExecutorAdapter<'a> {
             ),
         };
 
-        let mut storage_trie = if reset_storage {
-            pnk!(self.trie_db.trie_create(address.as_bytes(), None, true))
+        let storage_trie = if reset_storage {
+            self.trie_db
+                .trie_create(address.as_bytes(), None, true)
+                .c(d!())
         } else if existing {
-            pnk!(self.trie_db.trie_restore(
-                address.as_bytes(),
-                None,
-                old_account.storage_root.into()
-            ))
+            self.trie_db
+                .trie_restore(address.as_bytes(), None, old_account.storage_root.into())
+                .c(d!())
         } else {
-            pnk!(
-                self.trie_db
-                    .trie_create(address.as_bytes(), None, false)
-                    .c(d!("{}, {:?}", address, address.as_bytes()))
-            )
+            // this address does not exist in the world state,
+            // so we reset it in the trie backend db also.
+            self.trie_db
+                .trie_create(address.as_bytes(), None, true)
+                .c(d!("{}, {:?}", address, address.as_bytes()))
         };
+
+        let mut storage_trie = pnk!(storage_trie);
 
         storage.into_iter().for_each(|(k, v)| {
             let _ = storage_trie.insert(k.as_bytes(), v.as_bytes());

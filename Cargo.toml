@@ -53,10 +53,10 @@ ripemd = "0.1"
 
 ruc = { version = "4.1.0", features = ["crypto"] }
 
-vsdb = { version = "0.54.0", features = ["extra_types"] }
+vsdb = { version = "0.55.0", features = ["extra_types"] }
 # vsdb = { path = "../vsdb/wrappers", features = ["extra_types"] }
 
-vsdb_trie_db = "0.6.0"
+vsdb_trie_db = "0.7.0"
 # vsdb_trie_db = { path = "../vsdb/utils/trie_db" }
 
 ####################################################################

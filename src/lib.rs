@@ -11,7 +11,9 @@ pub use rt_evm_mempool as mempool;
 pub use rt_evm_model as model;
 pub use rt_evm_storage as storage;
 
-pub use model::types::{transaction::SignedTransaction as SignedTx, H160 as Address};
+pub use model::types::{
+    transaction::SignedTransaction as SignedTx, Account, H160 as Address,
+};
 
 use api::{run_jsonrpc_server, DefaultAPIAdapter as API};
 use blockmgmt::BlockMgmt;
@@ -24,20 +26,20 @@ use model::{
 use once_cell::sync::Lazy;
 use ruc::*;
 use std::{fs, io::ErrorKind, mem::size_of, path::PathBuf, sync::Arc};
-use storage::{MptStore, Storage};
+use storage::{get_account_by_backend, save_account_by_backend, MptStore, Storage};
 
 static META_PATH: Lazy<MetaPath> = Lazy::new(|| {
-    let mut trie = vsdb::vsdb_get_custom_dir().to_path_buf();
-    let mut storage = trie.clone();
-    let mut chain_id = trie.clone();
+    let mut trie_db = vsdb::vsdb_get_custom_dir().to_path_buf();
+    let mut storage = trie_db.clone();
+    let mut chain_id = trie_db.clone();
 
     chain_id.push("EVM_RUNTIME_chain_id.meta");
-    trie.push("EVM_RUNTIME_trie.meta");
+    trie_db.push("EVM_RUNTIME_trie.meta");
     storage.push("EVM_RUNTIME_storage.meta");
 
     MetaPath {
         chain_id,
-        trie,
+        trie_db,
         storage,
     }
 });
@@ -48,7 +50,7 @@ pub struct EvmRuntime {
     // create a new instance every time
     mempool: Arc<Mempool>,
 
-    trie: Arc<MptStore>,
+    trie_db: Arc<MptStore>,
     storage: Arc<Storage>,
 }
 
@@ -60,7 +62,7 @@ impl EvmRuntime {
         #[cfg(feature = "benchmark")]
         const MEM_POOL_CAP: u64 = 200_0000;
 
-        let trie = Arc::new(t);
+        let trie_db = Arc::new(t);
         let storage = Arc::new(s);
 
         Self {
@@ -69,10 +71,10 @@ impl EvmRuntime {
                 MEM_POOL_CAP,
                 600,
                 None,
-                Arc::clone(&trie),
+                Arc::clone(&trie_db),
                 Arc::clone(&storage),
             ),
-            trie,
+            trie_db,
             storage,
         }
     }
@@ -86,7 +88,7 @@ impl EvmRuntime {
 
         {
             let mut exector_adapter = RTEvmExecutorAdapter::new(
-                &r.trie,
+                &r.trie_db,
                 &r.storage,
                 Default::default(),
                 world_state_cache_size,
@@ -122,9 +124,9 @@ impl EvmRuntime {
         fs::write(META_PATH.chain_id.as_path(), u64::to_be_bytes(r.chain_id)).c(d!())?;
 
         // Only need to write once time !
-        bcs::to_bytes(&*r.trie)
+        bcs::to_bytes(&*r.trie_db)
             .c(d!())
-            .and_then(|bytes| fs::write(META_PATH.trie.as_path(), bytes).c(d!()))?;
+            .and_then(|bytes| fs::write(META_PATH.trie_db.as_path(), bytes).c(d!()))?;
 
         // Only need to write once time !
         bcs::to_bytes(&*r.storage)
@@ -136,17 +138,17 @@ impl EvmRuntime {
 
     pub fn restore() -> Result<Option<Self>> {
         let chain_id = fs::read(META_PATH.chain_id.as_path());
-        let trie = fs::read(META_PATH.trie.as_path());
+        let trie_db = fs::read(META_PATH.trie_db.as_path());
         let storage = fs::read(META_PATH.storage.as_path());
 
-        match (chain_id, trie, storage) {
-            (Ok(chain_id), Ok(trie), Ok(storage)) => {
+        match (chain_id, trie_db, storage) {
+            (Ok(chain_id), Ok(trie_db), Ok(storage)) => {
                 let chain_id = <[u8; size_of::<u64>()]>::try_from(chain_id)
                     .map_err(|_| eg!("invalid length"))
                     .map(u64::from_be_bytes)?;
-                let trie = bcs::from_bytes::<MptStore>(&trie).c(d!())?;
+                let trie_db = bcs::from_bytes::<MptStore>(&trie_db).c(d!())?;
                 let storage = bcs::from_bytes::<Storage>(&storage).c(d!())?;
-                Ok(Some(Self::new(chain_id, trie, storage)))
+                Ok(Some(Self::new(chain_id, trie_db, storage)))
             }
             (Err(a), Err(b), Err(c)) => match (a.kind(), b.kind(), c.kind()) {
                 (ErrorKind::NotFound, ErrorKind::NotFound, ErrorKind::NotFound) => {
@@ -184,7 +186,7 @@ impl EvmRuntime {
     }
 
     pub fn trie_handler(&self) -> &MptStore {
-        &self.trie
+        &self.trie_db
     }
 
     pub fn storage_handler(&self) -> &Storage {
@@ -196,7 +198,7 @@ impl EvmRuntime {
     }
 
     pub fn copy_trie_handler(&self) -> Arc<MptStore> {
-        Arc::clone(&self.trie)
+        Arc::clone(&self.trie_db)
     }
 
     pub fn copy_storage_handler(&self) -> Arc<Storage> {
@@ -259,11 +261,21 @@ impl EvmRuntime {
 
         Ok(())
     }
+
+    /// Useful when other modules need to check the account balance
+    pub fn get_account(&self, address: Address) -> Result<Account> {
+        get_account_by_backend(&self.trie_db, &self.storage, address, None).c(d!())
+    }
+
+    /// Useful when other modules need to change the account balance
+    pub fn save_account(&self, address: Address, account: &Account) -> Result<()> {
+        save_account_by_backend(&self.trie_db, &self.storage, address, account).c(d!())
+    }
 }
 
 struct MetaPath {
     chain_id: PathBuf,
-    trie: PathBuf,
+    trie_db: PathBuf,
     storage: PathBuf,
 }
 

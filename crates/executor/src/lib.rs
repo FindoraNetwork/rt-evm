@@ -179,7 +179,7 @@ impl RTEvmExecutor {
         let gas_limit = tx.transaction.unsigned.gas_limit();
         let prepay_gas = tx_gas_price.saturating_mul(*gas_limit);
 
-        let mut account = backend.get_account(&sender);
+        let mut account = backend.get_account(sender);
 
         let current_nonce = account.nonce;
 
@@ -188,12 +188,12 @@ impl RTEvmExecutor {
             let fee_cost = tx_gas_price.saturating_mul(MIN_TRANSACTION_GAS_LIMIT.into());
             account.balance = account.balance.saturating_sub(fee_cost);
             account.nonce = current_nonce + U256::one();
-            backend.save_account(&sender, &account);
+            backend.save_account(sender, &account);
             return TxResp::invalid_nonce(MIN_TRANSACTION_GAS_LIMIT, fee_cost);
         }
 
         account.balance = account.balance.saturating_sub(prepay_gas);
-        backend.save_account(&sender, &account);
+        backend.save_account(sender, &account);
 
         let metadata = StackSubstateMetadata::new(gas_limit.as_u64(), config);
         let mut executor = StackExecutor::new_with_precompiles(
@@ -234,7 +234,7 @@ impl RTEvmExecutor {
         let code_addr = if tx.transaction.unsigned.action() == &TransactionAction::Create
             && exit.is_succeed()
         {
-            Some(code_address(&tx.sender, &current_nonce))
+            Some(code_address(tx.sender, &current_nonce))
         } else {
             None
         };
@@ -244,7 +244,7 @@ impl RTEvmExecutor {
             backend.apply(values, logs, true);
         }
 
-        let mut account = backend.get_account(&tx.sender);
+        let mut account = backend.get_account(tx.sender);
         account.nonce = current_nonce + U256::one();
 
         // Add remain gas
@@ -258,7 +258,7 @@ impl RTEvmExecutor {
                 .unwrap_or_else(U256::max_value);
         }
 
-        backend.save_account(&tx.sender, &account);
+        backend.save_account(tx.sender, &account);
 
         TxResp {
             exit_reason: exit,

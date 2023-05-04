@@ -1,3 +1,67 @@
+[workspace]
+members = [
+    "crates/api",
+    "crates/mempool",
+    "crates/executor",
+    "crates/storage",
+    "crates/blockmgmt",
+    "crates/model",
+    "crates/utils/crypto",
+]
+
+[workspace.dependencies]
+rt-evm-api = { path = "crates/api" }
+rt-evm-mempool = { path = "crates/mempool" }
+rt-evm-executor = { path = "crates/executor" }
+rt-evm-storage = { path = "crates/storage", default-features = false }
+rt-evm-blockmgmt = { path = "crates/blockmgmt" }
+rt-evm-model = { path = "crates/model" }
+rt-evm-crypto = { path = "crates/utils/crypto" }
+
+evm = { version = "0.37", features = ["with-serde"] }
+ethereum = { version = "0.14", features = ["with-serde"] }
+ethereum-types = "0.14"
+
+beef = "0.5"
+jsonrpsee = { version = "0.15", features = ["http-server", "macros", "ws-server"] }
+
+rlp = "0.5"
+rlp-derive = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+faster-hex = "0.6"
+bcs = "0.1.5"
+bytes = { version = "1.4", features = ["serde"] }
+derive_more = "0.99"
+
+ophelia = "0.3"
+ophelia-secp256k1 = "0.3"
+
+moka = "0.10.0"
+rayon = "1.7.0"
+tokio = { version = "1.26", features = ["full"] }
+parking_lot = "0.12.1"
+once_cell = "1.17.1"
+arc-swap = "1.6"
+async-trait = "0.1"
+
+az = "1.2"
+bn = { package = "substrate-bn", version = "0.6" }
+rug = "1.19"
+sha2 = "0.10"
+ripemd = "0.1"
+
+ruc = { version = "4.1.0", features = ["crypto"] }
+
+vsdb = { version = "0.55.0", features = ["extra_types"] }
+# vsdb = { path = "../vsdb/wrappers", features = ["extra_types"] }
+
+vsdb_trie_db = "0.7.0"
+# vsdb_trie_db = { path = "../vsdb/utils/trie_db" }
+
+####################################################################
+####################################################################
+
 [package]
 name = "rt-evm"
 version = "0.2.0"
@@ -31,65 +95,3 @@ benchmark = ["rt-evm-api/benchmark", "rt-evm-executor/benchmark", "rt-evm-mempoo
 vsdb_bcs_codec = ["rt-evm-storage/vsdb_bcs_codec"]
 vsdb_json_codec = ["rt-evm-storage/vsdb_json_codec"]
 vsdb_msgpack_codec = ["rt-evm-storage/vsdb_msgpack_codec"]
-
-[workspace]
-members = [
-    "crates/api",
-    "crates/mempool",
-    "crates/executor",
-    "crates/storage",
-    "crates/blockmgmt",
-    "crates/model",
-    "crates/utils/crypto",
-]
-
-[workspace.dependencies]
-rt-evm-api = { path = "crates/api" }
-rt-evm-mempool = { path = "crates/mempool" }
-rt-evm-executor = { path = "crates/executor" }
-rt-evm-storage = { path = "crates/storage", default-features = false }
-rt-evm-blockmgmt = { path = "crates/blockmgmt" }
-rt-evm-model = { path = "crates/model" }
-rt-evm-crypto = { path = "crates/utils/crypto" }
-
-evm = { version = "0.37", features = ["with-serde"] }
-ethereum = { version = "0.14", features = ["with-codec", "with-serde"] }
-ethereum-types = { version = "0.14", features = ["arbitrary", "codec", "rlp", "serialize", "std"] }
-
-beef = "0.5"
-jsonrpsee = { version = "0.15", features = ["http-server", "macros", "ws-server"] }
-
-rlp = "0.5"
-rlp-derive = "0.1"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-faster-hex = "0.6"
-bcs = "0.1.5"
-bytes = { version = "1.4", features = ["serde"] }
-derive_more = "0.99"
-
-ophelia = "0.3"
-ophelia-secp256k1 = "0.3"
-
-moka = "0.10.0"
-rayon = "1.7.0"
-tokio = { version = "1.26", features = ["full"] }
-parking_lot = "0.12.1"
-once_cell = "1.17.1"
-arc-swap = "1.6"
-async-trait = "0.1"
-
-# deps of precompiles
-az = "1.2"
-bn = { package = "substrate-bn", version = "0.6" }
-rug = "1.19"
-sha2 = "0.10"
-ripemd = "0.1"
-
-ruc = { version = "4.1.0", features = ["crypto"] }
-
-vsdb = { version = "0.54.0", features = ["extra_types"] }
-# vsdb = { path = "../vsdb/wrappers", features = ["extra_types"] }
-
-vsdb_trie_db = "0.3.0"
-# vsdb_trie_db = { path = "../vsdb/utils/trie_db" }

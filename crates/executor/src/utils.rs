@@ -10,9 +10,9 @@ const REVERT_EFFECT_MSG_OFFSET: usize = REVERT_MSG_LEN_OFFSET + U256_BE_BYTES_LE
 const BLOOM_BYTE_LENGTH: usize = 256;
 const EXEC_REVERT: &str = "execution reverted: ";
 
-pub fn code_address(sender: &H160, nonce: &U256) -> H256 {
+pub fn code_address(sender: H160, nonce: &U256) -> H256 {
     let mut stream = rlp::RlpStream::new_list(2);
-    stream.append(sender);
+    stream.append(&sender);
     stream.append(nonce);
     Hasher::digest(&stream.out())
 }
@@ -116,7 +116,7 @@ mod tests {
                 .as_ref(),
         );
         let nonce: U256 = 0u64.into();
-        let addr: H160 = code_address(&sender, &nonce).into();
+        let addr: H160 = code_address(sender, &nonce).into();
         assert_eq!(
             hex_encode(addr.0).as_str(),
             "a13763691970d9373d4fab7cc323d7ba06fa9986"
@@ -127,7 +127,7 @@ mod tests {
                 .unwrap()
                 .as_ref(),
         );
-        let addr: H160 = code_address(&sender, &nonce).into();
+        let addr: H160 = code_address(sender, &nonce).into();
         assert_eq!(
             hex_encode(addr.0).as_str(),
             "cd234a471b72ba2f1ccf0a70fcaba648a5eecd8d"

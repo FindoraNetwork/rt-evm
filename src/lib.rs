@@ -24,6 +24,7 @@ use model::{
     types::{Basic, Block, H160, U256},
 };
 use once_cell::sync::Lazy;
+use rt_evm_model::lazy::set_chain_id;
 use ruc::*;
 use std::{fs, io::ErrorKind, mem::size_of, path::PathBuf, sync::Arc};
 use storage::{get_account_by_backend, save_account_by_backend, MptStore, Storage};
@@ -61,6 +62,8 @@ impl EvmRuntime {
 
         #[cfg(feature = "benchmark")]
         const MEM_POOL_CAP: u64 = 200_0000;
+
+        set_chain_id(chain_id);
 
         let trie_db = Arc::new(t);
         let storage = Arc::new(s);

@@ -21,6 +21,7 @@ rt-evm-crypto = { path = "crates/utils/crypto" }
 evm = { version = "0.37", features = ["with-serde"] }
 ethereum = { version = "0.14", features = ["with-serde"] }
 ethereum-types = "0.14"
+ethabi = "18.0.0"
 
 beef = "0.5"
 jsonrpsee = { version = "0.15", features = ["http-server", "macros", "ws-server"] }

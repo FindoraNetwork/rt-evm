@@ -3,14 +3,20 @@ use rt_evm_mempool::Mempool;
 use rt_evm_model::{
     async_trait,
     codec::ProtocolCodec,
-    traits::{APIAdapter, BlockStorage, Executor, ExecutorAdapter, TxStorage},
+    traits::{
+        APIAdapter, BlockStorage, Executor, ExecutorAdapter, TxStorage, BALANCE_SLOT,
+        CONSTANT_ADDR,
+    },
     types::{
-        Account, BigEndianHash, Block, BlockNumber, ExecutorContext, Hash, Header,
-        Proposal, Receipt, SignedTransaction, TxResp, H160, MAX_BLOCK_GAS_LIMIT,
-        NIL_HASH, U256, WORLD_STATE_META_KEY,
+        Account, BigEndianHash, Block, BlockNumber, ExecutorContext, Hash, Hasher,
+        Header, Proposal, Receipt, SignedTransaction, TxResp, H160, H256,
+        MAX_BLOCK_GAS_LIMIT, NIL_HASH, U256, WORLD_STATE_META_KEY,
     },
 };
-use rt_evm_storage::{MptStore, Storage};
+use rt_evm_storage::{
+    ethabi::{encode, Token},
+    MptStore, Storage,
+};
 use ruc::*;
 use std::sync::Arc;
 
@@ -109,12 +115,8 @@ impl APIAdapter for DefaultAPIAdapter {
         address: H160,
         number: Option<BlockNumber>,
     ) -> Result<Account> {
-        match self
-            .evm_backend(number)
-            .await
-            .c(d!())?
-            .get(address.as_bytes())
-        {
+        let state = self.evm_backend(number).await.c(d!())?;
+        let mut account = match state.get(address.as_bytes()) {
             Some(bytes) => Account::decode(bytes),
             None => Ok(Account {
                 nonce: U256::zero(),
@@ -122,7 +124,37 @@ impl APIAdapter for DefaultAPIAdapter {
                 storage_root: NIL_HASH,
                 code_hash: NIL_HASH,
             }),
+        }?;
+
+        if let Some(addr) = CONSTANT_ADDR.get() {
+            account.balance = U256::zero();
+            let storage_root = match state.get(addr.as_bytes()) {
+                Some(bytes) => Account::decode(bytes),
+                None => Ok(Account {
+                    nonce: U256::zero(),
+                    balance: U256::zero(),
+                    storage_root: NIL_HASH,
+                    code_hash: NIL_HASH,
+                }),
+            }?
+            .storage_root;
+
+            if storage_root != NIL_HASH {
+                if let Ok(storage_trie_tree) =
+                    self.trie_db
+                        .trie_restore(addr.as_bytes(), None, storage_root.into())
+                {
+                    let idx = Hasher::digest(&encode(&[
+                        Token::Address(address),
+                        Token::Uint(*BALANCE_SLOT.get().c(d!())?),
+                    ]));
+                    storage_trie_tree.get(idx.as_bytes())?.map(|balance| {
+                        account.balance = H256::from_slice(&balance).into_uint()
+                    });
+                };
+            }
         }
+        Ok(account)
     }
 
     async fn get_pending_tx_count(&self, address: H160) -> Result<U256> {

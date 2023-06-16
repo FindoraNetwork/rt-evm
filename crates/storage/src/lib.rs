@@ -1,20 +1,22 @@
 #![deny(warnings)]
 #![cfg_attr(feature = "benchmark", allow(warnings))]
 
-use once_cell::sync::Lazy;
+pub use ethabi;
 pub use trie_db::MptStore;
 pub use vsdb_trie_db as trie_db;
 pub use FunStorage as Storage;
 
+use ethabi::{encode, ethereum_types::BigEndianHash, Token};
 use moka::sync::Cache as Lru;
+use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use rayon::prelude::*;
 use rt_evm_model::{
     codec::ProtocolCodec,
-    traits::{BlockStorage, TxStorage},
+    traits::{BlockStorage, TxStorage, BALANCE_SLOT, CONSTANT_ADDR},
     types::{
-        Account, Block, BlockNumber, FatBlock, Hash, Header, Receipt, SignedTransaction,
-        H160, H256, NIL_HASH, U256, WORLD_STATE_META_KEY,
+        Account, Block, BlockNumber, FatBlock, Hash, Hasher, Header, Receipt,
+        SignedTransaction, H160, H256, NIL_HASH, U256, WORLD_STATE_META_KEY,
     },
 };
 use ruc::*;
@@ -394,7 +396,28 @@ pub fn get_account_by_backend(
         .trie_restore(&WORLD_STATE_META_KEY, None, header.state_root.into())
         .c(d!())?;
 
-    get_account_by_state(&state, address).c(d!())
+    get_account_by_state(&state, address)
+        .and_then(|mut account| {
+            if let Some(addr) = CONSTANT_ADDR.get() {
+                account.balance = U256::zero();
+                let storage_root = get_account_by_state(&state, *addr)?.storage_root;
+                if storage_root != NIL_HASH {
+                    if let Ok(storage_trie_tree) =
+                        trie_db.trie_restore(addr.as_bytes(), None, storage_root.into())
+                    {
+                        let idx = Hasher::digest(&encode(&[
+                            Token::Address(address),
+                            Token::Uint(*BALANCE_SLOT.get().c(d!())?),
+                        ]));
+                        storage_trie_tree.get(idx.as_bytes())?.map(|balance| {
+                            account.balance = H256::from_slice(&balance).into_uint()
+                        });
+                    };
+                }
+            }
+            Ok(account)
+        })
+        .c(d!())
 }
 
 pub fn get_account_by_state(state: &MptOnce, address: H160) -> Result<Account> {

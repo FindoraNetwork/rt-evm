@@ -3,6 +3,7 @@
 #![allow(clippy::uninlined_format_args, clippy::box_default)]
 
 pub mod adapter;
+mod memory;
 mod precompiles;
 mod utils;
 
@@ -19,15 +20,21 @@ use evm::{
     },
     CreateScheme,
 };
+use memory::MemoryStackStateWapper;
 use rt_evm_model::{
-    codec::ProtocolCodec,
-    traits::{ApplyBackend, Backend, Executor, ExecutorAdapter as Adapter},
+    codec::hex_encode,
+    traits::{
+        ApplyBackend, Backend, Executor, ExecutorAdapter as Adapter, SystemContract,
+        CONSTANT_ADDR, SYSTEM_ADDR,
+    },
     types::{
         data_gas_cost, Account, Config, ExecResp, Hasher, SignedTransaction,
         TransactionAction, TxResp, GAS_CALL_TRANSACTION, GAS_CREATE_TRANSACTION, H160,
-        MIN_TRANSACTION_GAS_LIMIT, NIL_HASH, U256,
+        MIN_TRANSACTION_GAS_LIMIT, U256,
     },
 };
+use rt_evm_storage::ethabi::{Function, Param, ParamType, StateMutability, Token};
+use ruc::{eg, pnk, Result, RucResult};
 use std::collections::BTreeMap;
 
 #[derive(Default)]
@@ -108,7 +115,8 @@ impl Executor for RTEvmExecutor {
         &self,
         backend: &mut B,
         txs: &[SignedTransaction],
-    ) -> ExecResp {
+        system_contracts: Option<Vec<SystemContract>>,
+    ) -> Result<ExecResp> {
         let txs_len = txs.len();
         let mut res = Vec::with_capacity(txs_len);
 
@@ -118,6 +126,15 @@ impl Executor for RTEvmExecutor {
         let (mut gas, mut fee) = (0u64, U256::zero());
         let precompiles = build_precompile_set();
         let config = Config::london();
+
+        if let Some(contracts) = system_contracts {
+            for contract in contracts {
+                backend.set_gas_price(contract.gas_price);
+                backend.set_origin(contract.address);
+                Self::deploy_system_contract(backend, &config, &precompiles, &contract)?;
+                backend.commit();
+            }
+        }
 
         for tx in txs.iter() {
             backend.set_gas_price(tx.transaction.unsigned.gas_price());
@@ -143,30 +160,199 @@ impl Executor for RTEvmExecutor {
         let transaction_root = trie_root_indexed(&tx_hashes);
         let receipt_root = trie_root_indexed(&receipt_hashes);
 
-        ExecResp {
+        Ok(ExecResp {
             state_root: new_state_root,
             transaction_root,
             receipt_root,
             gas_used: gas,
             fee_used: fee, // sum(<gas in tx * gas price setted by tx> ...)
             txs_resp: res,
-        }
+        })
     }
 
     fn get_account<B: Backend + Adapter>(&self, backend: &B, address: &H160) -> Account {
-        match backend.get(address.as_bytes()) {
-            Some(bytes) => Account::decode(bytes).unwrap(),
-            None => Account {
-                nonce: Default::default(),
-                balance: Default::default(),
-                storage_root: NIL_HASH,
-                code_hash: NIL_HASH,
-            },
-        }
+        backend.get_account(*address)
     }
 }
 
 impl RTEvmExecutor {
+    pub fn deploy_system_contract<B: Backend + ApplyBackend + Adapter>(
+        backend: &mut B,
+        config: &Config,
+        precompiles: &BTreeMap<H160, PrecompileFn>,
+        system_contract: &SystemContract,
+    ) -> Result<()> {
+        let gas_limit = U256::from(u64::MAX);
+
+        let sender = system_contract.address;
+
+        let metadata = StackSubstateMetadata::new(gas_limit.as_u64(), config);
+        let mut executor = StackExecutor::new_with_precompiles(
+            MemoryStackState::new(metadata, backend),
+            config,
+            precompiles,
+        );
+
+        let (exit, res) = executor.transact_create(
+            sender,
+            U256::zero(),
+            system_contract.code.clone(),
+            gas_limit.as_u64(),
+            vec![],
+        );
+        if exit.is_succeed() {
+            let (values, logs) = executor.into_state().deconstruct();
+            backend.apply(values, logs, true);
+        }
+        let mut account = backend.get_account(sender);
+        let current_nonce = account.nonce;
+        account.nonce = current_nonce + U256::one();
+        backend.save_account(sender, &account);
+
+        if exit.is_succeed() {
+            Ok(())
+        } else {
+            Err(eg!(
+                "system_contract exec error:{:?} {} {}",
+                exit,
+                hex_encode(&res),
+                String::from_utf8_lossy(&res)
+            ))
+        }
+    }
+
+    fn pay_fee<B: Backend + ApplyBackend + Adapter>(
+        backend: &mut B,
+        config: &Config,
+        precompiles: &BTreeMap<H160, PrecompileFn>,
+        contract_address: H160,
+        pay_addr: H160,
+        gas: U256,
+    ) -> Result<()> {
+        // function payFees(address payAddr, uint256 _fees)
+        #[allow(deprecated)]
+        let function = Function {
+            name: String::from("payFees"),
+            inputs: vec![
+                Param {
+                    name: String::from("payAddr"),
+                    kind: ParamType::Address,
+                    internal_type: Some(String::from("address")),
+                },
+                Param {
+                    name: String::from("_fees"),
+                    kind: ParamType::Uint(256),
+                    internal_type: Some(String::from("uint256")),
+                },
+            ],
+            outputs: vec![],
+            constant: None,
+            state_mutability: StateMutability::Payable,
+        };
+        let data = function
+            .encode_input(&[Token::Address(pay_addr), Token::Uint(gas)])
+            .map_err(|e| eg!(e))?;
+
+        let gas_limit = U256::from(u64::MAX);
+        let metadata = StackSubstateMetadata::new(gas_limit.as_u64(), config);
+        let mut executor = StackExecutor::new_with_precompiles(
+            MemoryStackState::new(metadata, backend),
+            config,
+            precompiles,
+        );
+
+        let (exit, res) = executor.transact_call(
+            *SYSTEM_ADDR,
+            contract_address,
+            U256::zero(),
+            data,
+            gas_limit.as_u64(),
+            vec![],
+        );
+        if exit.is_succeed() {
+            let (values, logs) = executor.into_state().deconstruct();
+            backend.apply(values, logs, true);
+            Ok(())
+        } else {
+            Err(eg!(
+                "payfee error:{:?} {} {}",
+                exit,
+                hex_encode(&res),
+                String::from_utf8_lossy(&res)
+            ))
+        }
+    }
+    fn pay_value<B: Backend + ApplyBackend + Adapter>(
+        backend: &mut B,
+        config: &Config,
+        precompiles: &BTreeMap<H160, PrecompileFn>,
+        contract_address: H160,
+        sending_address: H160,
+        receive_address: H160,
+        value: U256,
+    ) -> Result<()> {
+        // function payValue(address sendingAddress, address receiveAddress,uint256 value)
+        #[allow(deprecated)]
+        let function = Function {
+            name: String::from("payValue"),
+            inputs: vec![
+                Param {
+                    name: String::from("sendingAddress"),
+                    kind: ParamType::Address,
+                    internal_type: Some(String::from("address")),
+                },
+                Param {
+                    name: String::from("receiveAddress"),
+                    kind: ParamType::Address,
+                    internal_type: Some(String::from("address")),
+                },
+                Param {
+                    name: String::from("value"),
+                    kind: ParamType::Uint(256),
+                    internal_type: Some(String::from("uint256")),
+                },
+            ],
+            outputs: vec![],
+            constant: None,
+            state_mutability: StateMutability::Payable,
+        };
+        let data = function
+            .encode_input(&[
+                Token::Address(sending_address),
+                Token::Address(receive_address),
+                Token::Uint(value),
+            ])
+            .map_err(|e| eg!(e))?;
+
+        let gas_limit = U256::from(u64::MAX);
+        let metadata = StackSubstateMetadata::new(gas_limit.as_u64(), config);
+        let mut executor = StackExecutor::new_with_precompiles(
+            MemoryStackState::new(metadata, backend),
+            config,
+            precompiles,
+        );
+
+        let (exit, res) = executor.transact_call(
+            *SYSTEM_ADDR,
+            contract_address,
+            U256::zero(),
+            data,
+            gas_limit.as_u64(),
+            vec![],
+        );
+        if exit.is_succeed() {
+            let (values, logs) = executor.into_state().deconstruct();
+            backend.apply(values, logs, true);
+            Ok(())
+        } else {
+            Err(eg!(
+                "pay_value error:{:?} {} {}",
+                exit,
+                hex_encode(&res),
+                String::from_utf8_lossy(&res)
+            ))
+        }
+    }
     pub fn evm_exec<B: Backend + ApplyBackend + Adapter>(
         backend: &mut B,
         config: &Config,
@@ -186,6 +372,16 @@ impl RTEvmExecutor {
         #[cfg(not(feature = "benchmark"))]
         if tx.transaction.unsigned.nonce() != &current_nonce {
             let fee_cost = tx_gas_price.saturating_mul(MIN_TRANSACTION_GAS_LIMIT.into());
+            if let Some(addr) = CONSTANT_ADDR.get() {
+                pnk!(Self::pay_fee(
+                    backend,
+                    config,
+                    precompiles,
+                    *addr,
+                    sender,
+                    fee_cost
+                ));
+            }
             account.balance = account.balance.saturating_sub(fee_cost);
             account.nonce = current_nonce + U256::one();
             backend.save_account(sender, &account);
@@ -196,8 +392,9 @@ impl RTEvmExecutor {
         backend.save_account(sender, &account);
 
         let metadata = StackSubstateMetadata::new(gas_limit.as_u64(), config);
+
         let mut executor = StackExecutor::new_with_precompiles(
-            MemoryStackState::new(metadata, backend),
+            MemoryStackStateWapper::new(metadata, backend),
             config,
             precompiles,
         );
@@ -227,6 +424,7 @@ impl RTEvmExecutor {
                 access_list,
             ),
         };
+        let transfers = executor.state().transfers.clone();
 
         let remained_gas = executor.gas();
         let used_gas = executor.used_gas();
@@ -247,9 +445,10 @@ impl RTEvmExecutor {
         let mut account = backend.get_account(tx.sender);
         account.nonce = current_nonce + U256::one();
 
+        let mut remain_gas = U256::zero();
         // Add remain gas
         if remained_gas != 0 {
-            let remain_gas = U256::from(remained_gas)
+            remain_gas = U256::from(remained_gas)
                 .checked_mul(tx_gas_price)
                 .unwrap_or_else(U256::max_value);
             account.balance = account
@@ -259,6 +458,28 @@ impl RTEvmExecutor {
         }
 
         backend.save_account(tx.sender, &account);
+
+        if let Some(addr) = CONSTANT_ADDR.get() {
+            for it in transfers.iter() {
+                pnk!(Self::pay_value(
+                    backend,
+                    config,
+                    precompiles,
+                    *addr,
+                    it.source,
+                    it.target,
+                    it.value,
+                ));
+            }
+            pnk!(Self::pay_fee(
+                backend,
+                config,
+                precompiles,
+                *addr,
+                sender,
+                prepay_gas.saturating_sub(remain_gas)
+            ));
+        }
 
         TxResp {
             exit_reason: exit,

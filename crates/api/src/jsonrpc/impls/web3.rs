@@ -13,8 +13,9 @@ use rt_evm_model::{
     lazy::PROTOCOL_VERSION,
     traits::APIAdapter,
     types::{
-        Block, BlockNumber, Bytes, Hash, Header, Hex, Receipt, SignedTransaction,
-        TxResp, UnverifiedTransaction, H160, H256, H64, MAX_BLOCK_GAS_LIMIT, U256,
+        Block, BlockNumber, Bytes, ExitError, ExitReason, Hash, Header, Hex, Receipt,
+        SignedTransaction, TxResp, UnverifiedTransaction, H160, H256, H64,
+        MAX_BLOCK_GAS_LIMIT, U256,
     },
 };
 use ruc::*;
@@ -303,11 +304,53 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
             .map(|hex| hex.as_bytes())
             .unwrap_or_default();
         let resp = self
-            .call_evm(req, data_bytes, num)
+            .call_evm(req.clone(), data_bytes.clone(), num)
             .await
             .map_err(|e| Error::Custom(e.to_string()))?;
 
         if resp.exit_reason.is_succeed() {
+            // This parameter is used as the divisor and cannot be 0
+            let gas_limit = if let Some(gas) = req.gas.as_ref() {
+                alt!(
+                    gas.to_owned() > U256::from(u32::MAX),
+                    u32::MAX,
+                    gas.as_u32()
+                ) as u64
+            } else {
+                u32::MAX as u64
+            };
+
+            let mut highest = U256::from(gas_limit);
+            let mut lowest = U256::from(21_000);
+            let mut mid =
+                std::cmp::min(U256::from(resp.gas_used) * 3, (highest + lowest) / 2);
+            let mut previous_highest = highest;
+
+            while (highest - lowest) > U256::one() {
+                let mut req2 = req.clone();
+                req2.gas = Some(mid);
+                let resp2 = self
+                    .call_evm(req2, data_bytes.clone(), num)
+                    .await
+                    .map_err(|e| Error::Custom(e.to_string()))?;
+                match resp2.exit_reason {
+                    ExitReason::Succeed(_) => {
+                        highest = mid;
+                        if (previous_highest - highest) * 10 / previous_highest
+                            < U256::one()
+                        {
+                            return Ok(highest);
+                        }
+                        previous_highest = highest;
+                    }
+                    ExitReason::Revert(_) | ExitReason::Error(ExitError::OutOfGas) => {
+                        lowest = mid;
+                    }
+                    other => error_on_execution_failure(&other, &resp2.ret)?,
+                }
+                mid = (highest + lowest) / 2;
+            }
+
             return Ok(resp.gas_used.into());
         }
 
@@ -774,5 +817,33 @@ pub fn from_receipt_to_web3_log(
             };
             logs.push(web3_log);
         }
+    }
+}
+
+pub fn error_on_execution_failure(reason: &ExitReason, data: &[u8]) -> RpcResult<()> {
+    match reason {
+        ExitReason::Succeed(_) => Ok(()),
+        ExitReason::Error(e) => {
+            if *e == ExitError::OutOfGas {
+                // `ServerError(0)` will be useful in estimate gas
+                return Err(Error::Custom("out of gas".to_string()));
+            }
+            Err(Error::Custom("Internal".to_string()))
+        }
+        ExitReason::Revert(_) => {
+            let mut message =
+                "VM Exception while processing transaction: revert".to_string();
+            // A minimum size of error function selector (4) + offset (32) + string length (32)
+            // should contain a utf-8 encoded revert reason.
+            if data.len() > 68 {
+                let message_len = data[36..68].iter().sum::<u8>();
+                let body: &[u8] = &data[68..68 + message_len as usize];
+                if let Ok(reason) = std::str::from_utf8(body) {
+                    message = format!("{message} {reason}");
+                }
+            }
+            Err(Error::Custom(message))
+        }
+        ExitReason::Fatal(e) => Err(Error::Custom(format!("evm fatal: {e:?}"))),
     }
 }

@@ -119,21 +119,11 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
     }
 
     fn basic(&self, address: H160) -> Basic {
-        self.state
-            .get(address.as_bytes())
-            .map(|raw| {
-                if raw.is_none() {
-                    return Basic::default();
-                }
-                Account::decode(raw.unwrap()).map_or_else(
-                    |_| Default::default(),
-                    |account| Basic {
-                        balance: account.balance,
-                        nonce: account.nonce,
-                    },
-                )
-            })
-            .unwrap_or_default()
+        let account = self.get_account(address);
+        Basic {
+            balance: account.balance,
+            nonce: account.nonce,
+        }
     }
 
     fn code(&self, address: H160) -> Vec<u8> {
@@ -259,7 +249,7 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         storage: I,
         reset_storage: bool,
     ) -> bool {
-        let (old_account, existing) = match self.state.get(address.as_bytes()) {
+        let (old_account, mut existing) = match self.state.get(address.as_bytes()) {
             Ok(Some(raw)) => (pnk!(Account::decode(raw)), true),
             _ => (
                 Account {
@@ -271,6 +261,9 @@ impl<'a> RTEvmExecutorAdapter<'a> {
                 false,
             ),
         };
+        if old_account.storage_root == NIL_HASH {
+            existing = false;
+        }
 
         let storage_trie = if reset_storage {
             self.trie_db.trie_create(address.as_bytes(), true).c(d!())

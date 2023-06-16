@@ -154,7 +154,7 @@ impl APIAdapter for DefaultAPIAdapter {
             .map(|gas| gas.as_u64())
             .unwrap_or(MAX_BLOCK_GAS_LIMIT);
 
-        Ok(RTEvmExecutor::default().call(&backend, gas_limit, from, to, value, data))
+        Ok(RTEvmExecutor.call(&backend, gas_limit, from, to, value, data))
     }
 
     async fn get_code_by_hash(&self, hash: &Hash) -> Result<Option<Vec<u8>>> {

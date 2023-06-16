@@ -20,12 +20,11 @@ use evm::{
     CreateScheme,
 };
 use rt_evm_model::{
-    codec::ProtocolCodec,
     traits::{ApplyBackend, Backend, Executor, ExecutorAdapter as Adapter},
     types::{
         data_gas_cost, Account, Config, ExecResp, Hasher, SignedTransaction,
         TransactionAction, TxResp, GAS_CALL_TRANSACTION, GAS_CREATE_TRANSACTION, H160,
-        MIN_TRANSACTION_GAS_LIMIT, NIL_HASH, U256,
+        MIN_TRANSACTION_GAS_LIMIT, U256,
     },
 };
 use std::collections::BTreeMap;
@@ -154,15 +153,7 @@ impl Executor for RTEvmExecutor {
     }
 
     fn get_account<B: Backend + Adapter>(&self, backend: &B, address: &H160) -> Account {
-        match backend.get(address.as_bytes()) {
-            Some(bytes) => Account::decode(bytes).unwrap(),
-            None => Account {
-                nonce: Default::default(),
-                balance: Default::default(),
-                storage_root: NIL_HASH,
-                code_hash: NIL_HASH,
-            },
-        }
+        backend.get_account(*address)
     }
 }
 
@@ -196,6 +187,7 @@ impl RTEvmExecutor {
         backend.save_account(sender, &account);
 
         let metadata = StackSubstateMetadata::new(gas_limit.as_u64(), config);
+
         let mut executor = StackExecutor::new_with_precompiles(
             MemoryStackState::new(metadata, backend),
             config,

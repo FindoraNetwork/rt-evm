@@ -1,9 +1,13 @@
 pub use evm::backend::{ApplyBackend, Backend};
 
-use crate::types::{
-    Account, ExecResp, ExecutorContext, Log, MerkleRoot, SignedTransaction, TxResp,
-    H160, U256,
+use crate::{
+    traits::SystemContract,
+    types::{
+        Account, ExecResp, ExecutorContext, Log, MerkleRoot, SignedTransaction, TxResp,
+        H160, U256,
+    },
 };
+use ruc::Result;
 
 pub trait ExecutorAdapter {
     fn set_origin(&mut self, origin: H160);
@@ -22,7 +26,6 @@ pub trait ExecutorAdapter {
 
     fn save_account(&mut self, address: H160, account: &Account);
 }
-
 pub trait Executor: Send + Sync {
     fn call<B: Backend>(
         &self,
@@ -38,7 +41,8 @@ pub trait Executor: Send + Sync {
         &self,
         backend: &mut B,
         txs: &[SignedTransaction],
-    ) -> ExecResp;
+        system_contracts: Option<Vec<SystemContract>>,
+    ) -> Result<ExecResp>;
 
     fn get_account<B: Backend + ExecutorAdapter>(
         &self,

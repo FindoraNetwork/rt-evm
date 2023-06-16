@@ -8,7 +8,7 @@ use rt_evm_executor::{
 };
 use rt_evm_mempool::Mempool;
 use rt_evm_model::{
-    traits::{BlockStorage as _, Executor as _, TxStorage as _},
+    traits::{BlockStorage as _, Executor as _, SystemContract, TxStorage as _},
     types::{
         Block, ExecResp, ExecutorContext, FatBlock, FatBlockRef, Hash, Header,
         MerkleRoot, Proposal, Receipt, SignedTransaction, BASE_FEE_PER_GAS, H160,
@@ -64,8 +64,12 @@ impl BlockMgmt {
     }
 
     /// generate a new block and persist it
-    pub fn produce_block(&self, txs: Vec<SignedTransaction>) -> Result<Header> {
-        let (block, receipts) = self.generate_block(&txs).c(d!())?;
+    pub fn produce_block(
+        &self,
+        txs: Vec<SignedTransaction>,
+        system_contracts: Option<Vec<SystemContract>>,
+    ) -> Result<Header> {
+        let (block, receipts) = self.generate_block(&txs, system_contracts).c(d!())?;
         let header = block.header.clone();
 
         self.storage.insert_txs(header.number, txs).c(d!())?;
@@ -80,6 +84,7 @@ impl BlockMgmt {
     fn generate_block(
         &self,
         txs: &[SignedTransaction],
+        system_contracts: Option<Vec<SystemContract>>,
     ) -> Result<(Block, Vec<Receipt>)> {
         let proposal = self.generate_proposal(txs).c(d!())?;
 
@@ -91,7 +96,7 @@ impl BlockMgmt {
             executor_ctx,
         )
         .c(d!())?;
-        let exec_resp = Executor.exec(&mut evm_exec_backend, txs);
+        let exec_resp = Executor.exec(&mut evm_exec_backend, txs, system_contracts)?;
 
         self.mempool.tx_cleanup(txs);
 

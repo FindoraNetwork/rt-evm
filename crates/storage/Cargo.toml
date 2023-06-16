@@ -17,6 +17,7 @@ vsdb = { workspace = true }
 vsdb_trie_db = { workspace = true }
 
 rt-evm-model = { workspace = true }
+ethabi = { workspace = true }
 
 [dev-dependencies]
 

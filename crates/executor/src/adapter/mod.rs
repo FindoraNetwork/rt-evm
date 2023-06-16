@@ -1,13 +1,17 @@
 use evm::backend::{Apply, Basic};
 use rt_evm_model::{
     codec::ProtocolCodec,
-    traits::{ApplyBackend, Backend, BlockStorage, ExecutorAdapter, TxStorage},
+    traits::{
+        ApplyBackend, Backend, BlockStorage, ExecutorAdapter, TxStorage, BALANCE_SLOT,
+        CONSTANT_ADDR,
+    },
     types::{
-        Account, ExecutorContext, Hasher, Log, MerkleRoot, Proposal, H160, H256,
-        NIL_HASH, U256, WORLD_STATE_META_KEY,
+        Account, BigEndianHash, ExecutorContext, Hasher, Log, MerkleRoot, Proposal,
+        H160, H256, NIL_HASH, U256, WORLD_STATE_META_KEY,
     },
 };
 use rt_evm_storage::{
+    ethabi::{encode, Token},
     get_account_by_state, save_account_by_state,
     trie_db::{MptOnce, MptStore},
     Storage,
@@ -53,7 +57,31 @@ impl<'a> ExecutorAdapter for RTEvmExecutorAdapter<'a> {
     }
 
     fn get_account(&self, address: H160) -> Account {
-        pnk!(get_account_by_state(&self.state, address))
+        pnk!(
+            get_account_by_state(&self.state, address).and_then(|mut account| {
+                if let Some(addr) = CONSTANT_ADDR.get() {
+                    account.balance = U256::zero();
+                    let storage_root =
+                        get_account_by_state(&self.state, *addr)?.storage_root;
+                    if storage_root != NIL_HASH {
+                        if let Ok(storage_trie_tree) = self.trie_db.trie_restore(
+                            addr.as_bytes(),
+                            None,
+                            storage_root.into(),
+                        ) {
+                            let idx = Hasher::digest(&encode(&[
+                                Token::Address(address),
+                                Token::Uint(*BALANCE_SLOT.get().c(d!())?),
+                            ]));
+                            storage_trie_tree.get(idx.as_bytes())?.map(|balance| {
+                                account.balance = H256::from_slice(&balance).into_uint()
+                            });
+                        };
+                    }
+                }
+                Ok(account)
+            })
+        )
     }
 
     fn save_account(&mut self, address: H160, account: &Account) {
@@ -119,21 +147,11 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
     }
 
     fn basic(&self, address: H160) -> Basic {
-        self.state
-            .get(address.as_bytes())
-            .map(|raw| {
-                if raw.is_none() {
-                    return Basic::default();
-                }
-                Account::decode(raw.unwrap()).map_or_else(
-                    |_| Default::default(),
-                    |account| Basic {
-                        balance: account.balance,
-                        nonce: account.nonce,
-                    },
-                )
-            })
-            .unwrap_or_default()
+        let account = self.get_account(address);
+        Basic {
+            balance: account.balance,
+            nonce: account.nonce,
+        }
     }
 
     fn code(&self, address: H160) -> Vec<u8> {
@@ -262,7 +280,7 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         storage: I,
         reset_storage: bool,
     ) -> bool {
-        let (old_account, existing) = match self.state.get(address.as_bytes()) {
+        let (old_account, mut existing) = match self.state.get(address.as_bytes()) {
             Ok(Some(raw)) => (pnk!(Account::decode(raw)), true),
             _ => (
                 Account {
@@ -274,6 +292,9 @@ impl<'a> RTEvmExecutorAdapter<'a> {
                 false,
             ),
         };
+        if old_account.storage_root == NIL_HASH {
+            existing = false;
+        }
 
         let storage_trie = if reset_storage {
             self.trie_db

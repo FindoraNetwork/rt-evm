@@ -408,11 +408,7 @@ impl SignatureComponents {
     }
 
     pub fn extract_chain_id(v: u64) -> Option<u64> {
-        if v >= 35 {
-            Some((v - 35) / 2u64)
-        } else {
-            None
-        }
+        if v >= 35 { Some((v - 35) / 2u64) } else { None }
     }
 
     #[allow(clippy::len_without_is_empty)]

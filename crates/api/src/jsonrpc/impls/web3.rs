@@ -311,11 +311,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         if resp.exit_reason.is_succeed() {
             // This parameter is used as the divisor and cannot be 0
             let gas_limit = if let Some(gas) = req.gas.as_ref() {
-                alt!(
-                    gas.to_owned() > U256::from(u32::MAX),
-                    u32::MAX,
-                    gas.as_u32()
-                ) as u64
+                alt!(*gas > U256::from(u32::MAX), u32::MAX, gas.as_u32()) as u64
             } else {
                 u32::MAX as u64
             };
@@ -323,7 +319,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
             let mut highest = U256::from(gas_limit);
             let mut lowest = U256::from(21_000);
             let mut mid =
-                std::cmp::min(U256::from(resp.gas_used) * 3, (highest + lowest) / 2);
+                (U256::from(resp.gas_used) * U256::from(3)).min((highest + lowest) / 2);
             let mut previous_highest = highest;
 
             while (highest - lowest) > U256::one() {
@@ -551,10 +547,11 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
 
                     (
                         filter.from_block.map(convert).unwrap_or(latest_number),
-                        std::cmp::min(
-                            filter.to_block.map(convert).unwrap_or(latest_number),
-                            latest_number,
-                        ),
+                        filter
+                            .to_block
+                            .map(convert)
+                            .unwrap_or(latest_number)
+                            .min(latest_number),
                     )
                 };
 

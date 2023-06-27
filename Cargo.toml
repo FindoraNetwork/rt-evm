@@ -51,13 +51,9 @@ rug = "1.19"
 sha2 = "0.10"
 ripemd = "0.1"
 
-ruc = { version = "4.1.0", features = ["crypto"] }
-
-vsdb = { version = "0.55.0", features = ["extra_types"] }
-# vsdb = { path = "../vsdb/wrappers", features = ["extra_types"] }
-
-vsdb_trie_db = "0.7.0"
-# vsdb_trie_db = { path = "../vsdb/utils/trie_db" }
+ruc = { version = "5.0.10", features = ["crypto"] }
+vsdb = { version = "0.60.0", default-features = false, features = ["extra_types"] }
+vsdb_trie_db = "0.14.0"
 
 ####################################################################
 ####################################################################

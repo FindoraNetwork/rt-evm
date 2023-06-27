@@ -390,7 +390,7 @@ pub fn get_account_by_backend(
     };
 
     let state = trie_db
-        .trie_restore(&WORLD_STATE_META_KEY, None, header.state_root.into())
+        .trie_restore(&WORLD_STATE_META_KEY, header.state_root.into())
         .c(d!())?;
 
     get_account_by_state(&state, address).c(d!())
@@ -416,7 +416,7 @@ pub fn save_account_by_backend(
 ) -> Result<()> {
     let header = storage.get_latest_block_header().c(d!())?;
     let mut state = trie_db
-        .trie_restore(&WORLD_STATE_META_KEY, None, header.state_root.into())
+        .trie_restore(&WORLD_STATE_META_KEY, header.state_root.into())
         .c(d!())?;
 
     save_account_by_state(&mut state, address, account).c(d!())

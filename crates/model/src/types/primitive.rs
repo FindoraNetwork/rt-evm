@@ -14,7 +14,7 @@ pub struct Hasher;
 
 impl Hasher {
     pub fn digest(data: impl AsRef<[u8]>) -> Hash {
-        crypto::hash(data.as_ref()).into()
+        crypto::keccak_hash(data.as_ref()).into()
     }
 }
 

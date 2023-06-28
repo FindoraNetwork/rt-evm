@@ -8,7 +8,8 @@ use rt_evm_model::{
     },
 };
 use rt_evm_storage::{
-    get_account_by_state, save_account_by_state,
+    get_account_by_state, get_with_cache, insert_with_cache, remove_with_cache,
+    save_account_by_state,
     trie_db::{MptOnce, MptStore},
     Storage,
 };
@@ -49,7 +50,7 @@ impl<'a> ExecutorAdapter for RTEvmExecutorAdapter<'a> {
     }
 
     fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
-        self.state.get(key).ok().flatten()
+        get_with_cache(&self.state, key).ok().flatten()
     }
 
     fn get_account(&self, address: H160) -> Account {
@@ -119,8 +120,7 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
     }
 
     fn basic(&self, address: H160) -> Basic {
-        self.state
-            .get(address.as_bytes())
+        get_with_cache(&self.state, address.as_bytes())
             .map(|raw| {
                 if raw.is_none() {
                     return Basic::default();
@@ -137,11 +137,12 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
     }
 
     fn code(&self, address: H160) -> Vec<u8> {
-        let code_hash = if let Some(bytes) = pnk!(self.state.get(address.as_bytes())) {
-            pnk!(Account::decode(bytes)).code_hash
-        } else {
-            return Vec::new();
-        };
+        let code_hash =
+            if let Some(bytes) = pnk!(get_with_cache(&self.state, address.as_bytes())) {
+                pnk!(Account::decode(bytes)).code_hash
+            } else {
+                return Vec::new();
+            };
 
         if code_hash == NIL_HASH {
             return Vec::new();
@@ -153,7 +154,7 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
     }
 
     fn storage(&self, address: H160, index: H256) -> H256 {
-        if let Ok(raw) = self.state.get(address.as_bytes()) {
+        if let Ok(raw) = get_with_cache(&self.state, address.as_bytes()) {
             if raw.is_none() {
                 return H256::default();
             }
@@ -166,7 +167,7 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
                     } else {
                         self.trie_db
                             .trie_restore(address.as_bytes(), None, storage_root.into())
-                            .map(|trie| match trie.get(index.as_bytes()) {
+                            .map(|trie| match get_with_cache(&trie, index.as_bytes()) {
                                 Ok(Some(res)) => H256::from_slice(res.as_ref()),
                                 _ => H256::default(),
                             })
@@ -204,12 +205,12 @@ impl<'a> ApplyBackend for RTEvmExecutorAdapter<'a> {
                         self.apply(address, basic, code, storage, reset_storage);
                     if is_empty && delete_empty {
                         self.trie_db.trie_remove(address.as_bytes());
-                        pnk!(self.state.remove(address.as_bytes()));
+                        pnk!(remove_with_cache(&mut self.state, address.as_bytes()));
                     }
                 }
                 Apply::Delete { address } => {
                     self.trie_db.trie_remove(address.as_bytes());
-                    pnk!(self.state.remove(address.as_bytes()));
+                    pnk!(remove_with_cache(&mut self.state, address.as_bytes()));
                 }
             }
         }
@@ -262,18 +263,19 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         storage: I,
         reset_storage: bool,
     ) -> bool {
-        let (old_account, existing) = match self.state.get(address.as_bytes()) {
-            Ok(Some(raw)) => (pnk!(Account::decode(raw)), true),
-            _ => (
-                Account {
-                    nonce: U256::zero(),
-                    balance: U256::zero(),
-                    storage_root: NIL_HASH,
-                    code_hash: NIL_HASH,
-                },
-                false,
-            ),
-        };
+        let (old_account, existing) =
+            match get_with_cache(&self.state, address.as_bytes()) {
+                Ok(Some(raw)) => (pnk!(Account::decode(raw)), true),
+                _ => (
+                    Account {
+                        nonce: U256::zero(),
+                        balance: U256::zero(),
+                        storage_root: NIL_HASH,
+                        code_hash: NIL_HASH,
+                    },
+                    false,
+                ),
+            };
 
         let storage_trie = if reset_storage {
             self.trie_db
@@ -294,7 +296,7 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         let mut storage_trie = pnk!(storage_trie);
 
         storage.into_iter().for_each(|(k, v)| {
-            let _ = storage_trie.insert(k.as_bytes(), v.as_bytes());
+            let _ = insert_with_cache(&mut storage_trie, k.as_bytes(), v.as_bytes());
         });
 
         let mut new_account = Account {
@@ -314,7 +316,11 @@ impl<'a> RTEvmExecutorAdapter<'a> {
 
         let bytes = pnk!(new_account.encode());
 
-        pnk!(self.state.insert(address.as_bytes(), bytes.as_ref()));
+        pnk!(insert_with_cache(
+            &mut self.state,
+            address.as_bytes(),
+            bytes.as_ref()
+        ));
 
         new_account.balance == U256::zero()
             && new_account.nonce == U256::zero()

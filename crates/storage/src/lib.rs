@@ -1,6 +1,7 @@
 #![deny(warnings)]
 #![cfg_attr(feature = "benchmark", allow(warnings))]
 
+use once_cell::sync::Lazy;
 pub use trie_db::MptStore;
 pub use vsdb_trie_db as trie_db;
 pub use FunStorage as Storage;
@@ -18,8 +19,8 @@ use rt_evm_model::{
 };
 use ruc::*;
 use serde::{Deserialize, Serialize};
-use std::{sync::Arc, time::Duration};
-use trie_db::MptOnce;
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use trie_db::{MptOnce, TrieRoot};
 use vsdb::{MapxOrd, MapxRaw};
 
 const BATCH_LIMIT: usize = 1000;
@@ -397,7 +398,7 @@ pub fn get_account_by_backend(
 }
 
 pub fn get_account_by_state(state: &MptOnce, address: H160) -> Result<Account> {
-    match state.get(address.as_bytes()).c(d!())? {
+    match get_with_cache(state, address.as_bytes()).c(d!())? {
         Some(bytes) => Account::decode(bytes).c(d!()),
         None => Ok(Account {
             nonce: U256::zero(),
@@ -431,4 +432,56 @@ pub fn save_account_by_state(
         .encode()
         .c(d!())
         .and_then(|acc| state.insert(address.as_bytes(), &acc).c(d!()))
+}
+
+static QUERY_CACHE: Lazy<RwLock<BTreeMap<(TrieRoot, Vec<u8>), Option<Vec<u8>>>>> =
+    Lazy::new(|| RwLock::new(Default::default()));
+
+pub fn get_with_cache(state: &MptOnce, key: &[u8]) -> Result<Option<Vec<u8>>> {
+    let root = state.root();
+    let res = state.get(key);
+    if res.is_ok() {
+        let val = res.as_ref().unwrap();
+        QUERY_CACHE
+            .write()
+            .insert((root, key.to_vec()), val.to_owned());
+        return res;
+    } else {
+        let read = QUERY_CACHE.read();
+        let res = read.get(&(root, key.to_vec()));
+        if res.is_some() {
+            return Ok(res.unwrap().to_owned());
+        }
+    }
+    res
+}
+
+pub fn remove_with_cache(state: &mut MptOnce, key: &[u8]) -> Result<()> {
+    state.remove(key).map(|v| {
+        let root = state.root();
+        QUERY_CACHE.write().remove(&(root, key.to_owned()));
+        v
+    })
+}
+
+pub fn insert_with_cache(state: &mut MptOnce, key: &[u8], value: &[u8]) -> Result<()> {
+    let insert_res = state.insert(key, value);
+    let get_res = state.get(key);
+    let root = state.root();
+
+    if insert_res.is_ok() {
+        if get_res.is_ok() {
+            if get_res.as_ref().unwrap().is_some() {
+                QUERY_CACHE
+                    .write()
+                    .insert((root, key.to_vec()), Some(value.to_owned()));
+            }
+        } else {
+            QUERY_CACHE
+                .write()
+                .insert((root, key.to_vec()), Some(value.to_owned()));
+        }
+    }
+
+    insert_res
 }

@@ -448,10 +448,12 @@ pub fn get_with_cache(state: &MptOnce, key: &[u8]) -> Result<Option<Vec<u8>>> {
         return res;
     } else {
         let read = QUERY_CACHE.read();
-        let res = read.get(&(root, key.to_vec()));
-        if res.is_some() {
-            return Ok(res.unwrap().to_owned());
+        let val = read.get(&(root, key.to_vec()));
+        if val.is_some() {
+            println!("get_with_cache success: {:?}", res);
+            return Ok(val.unwrap().to_owned());
         }
+        println!("get_with_cache failed: {:?}", res);
     }
     res
 }
@@ -465,23 +467,13 @@ pub fn remove_with_cache(state: &mut MptOnce, key: &[u8]) -> Result<()> {
 }
 
 pub fn insert_with_cache(state: &mut MptOnce, key: &[u8], value: &[u8]) -> Result<()> {
-    let insert_res = state.insert(key, value);
-    let get_res = state.get(key);
-    let root = state.root();
-
-    if insert_res.is_ok() {
-        if get_res.is_ok() {
-            if get_res.as_ref().unwrap().is_some() {
-                QUERY_CACHE
-                    .write()
-                    .insert((root, key.to_vec()), Some(value.to_owned()));
-            }
-        } else {
+    state.insert(key, value).map(|v| {
+        let root = state.root();
+        if QUERY_CACHE.read().get(&(root, key.to_owned())).is_some() {
             QUERY_CACHE
                 .write()
-                .insert((root, key.to_vec()), Some(value.to_owned()));
+                .insert((root, key.to_owned()), Some(value.to_owned()));
         }
-    }
-
-    insert_res
+        v
+    })
 }

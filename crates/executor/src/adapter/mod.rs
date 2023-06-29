@@ -74,9 +74,12 @@ impl<'a> ExecutorAdapter for RTEvmExecutorAdapter<'a> {
                                 Token::Address(address),
                                 Token::Uint(*BALANCE_SLOT.get().c(d!())?),
                             ]));
-                            storage_trie_tree.get(idx.as_bytes())?.map(|balance| {
-                                account.balance = H256::from_slice(&balance).into_uint()
-                            });
+                            get_with_cache(&storage_trie_tree, idx.as_bytes())?.map(
+                                |balance| {
+                                    account.balance =
+                                        H256::from_slice(&balance).into_uint()
+                                },
+                            );
                         };
                     }
                 }

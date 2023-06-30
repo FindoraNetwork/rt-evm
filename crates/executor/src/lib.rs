@@ -18,7 +18,7 @@ use evm::{
     executor::stack::{
         MemoryStackState, PrecompileFn, StackExecutor, StackSubstateMetadata,
     },
-    CreateScheme,
+    CreateScheme, ExitError, ExitReason, Transfer,
 };
 use memory::MemoryStackStateWapper;
 use rt_evm_model::{
@@ -36,6 +36,14 @@ use rt_evm_model::{
 use rt_evm_storage::ethabi::{Function, Param, ParamType, StateMutability, Token};
 use ruc::{eg, pnk, Result, RucResult};
 use std::collections::BTreeMap;
+
+pub struct PayFee {
+    /// Source address.
+    pub source: H160,
+    /// Target address.
+    /// Transfer value.
+    pub value: U256,
+}
 
 #[derive(Default)]
 pub struct RTEvmExecutor;
@@ -136,12 +144,16 @@ impl Executor for RTEvmExecutor {
             }
         }
 
+        let mut pay_fees = vec![];
+        let mut transfers = vec![];
         for tx in txs.iter() {
             backend.set_gas_price(tx.transaction.unsigned.gas_price());
             backend.set_origin(tx.sender);
 
-            let mut r = Self::evm_exec(backend, &config, &precompiles, tx);
-
+            let (mut r, pay_fee, pay_value) =
+                Self::evm_exec(backend, &config, &precompiles, tx);
+            pay_fees.push(pay_fee);
+            transfers.extend(pay_value);
             backend.commit();
 
             r.logs = backend.get_logs();
@@ -152,6 +164,35 @@ impl Executor for RTEvmExecutor {
             receipt_hashes.push(Hasher::digest(&r.ret));
 
             res.push(r);
+        }
+        if let Some(addr) = CONSTANT_ADDR.get() {
+            for it in transfers.iter() {
+                backend.set_gas_price(U256::from(u64::MAX));
+                backend.set_origin(*SYSTEM_ADDR);
+                pnk!(Self::pay_value(
+                    backend,
+                    &config,
+                    &precompiles,
+                    *addr,
+                    it.source,
+                    it.target,
+                    it.value,
+                ));
+                backend.commit();
+            }
+            for it in pay_fees.iter() {
+                backend.set_gas_price(U256::from(u64::MAX));
+                backend.set_origin(*SYSTEM_ADDR);
+                pnk!(Self::pay_fee(
+                    backend,
+                    &config,
+                    &precompiles,
+                    *addr,
+                    it.source,
+                    it.value
+                ));
+                backend.commit();
+            }
         }
 
         // Get the new root, the look-like `commit` is a noop here
@@ -353,12 +394,13 @@ impl RTEvmExecutor {
             ))
         }
     }
+
     pub fn evm_exec<B: Backend + ApplyBackend + Adapter>(
         backend: &mut B,
         config: &Config,
         precompiles: &BTreeMap<H160, PrecompileFn>,
         tx: &SignedTransaction,
-    ) -> TxResp {
+    ) -> (TxResp, PayFee, Vec<Transfer>) {
         // Deduct pre-pay gas
         let sender = tx.sender;
         let tx_gas_price = backend.gas_price();
@@ -372,20 +414,28 @@ impl RTEvmExecutor {
         #[cfg(not(feature = "benchmark"))]
         if tx.transaction.unsigned.nonce() != &current_nonce {
             let fee_cost = tx_gas_price.saturating_mul(MIN_TRANSACTION_GAS_LIMIT.into());
-            if let Some(addr) = CONSTANT_ADDR.get() {
-                pnk!(Self::pay_fee(
-                    backend,
-                    config,
-                    precompiles,
-                    *addr,
-                    sender,
-                    fee_cost
-                ));
-            }
             account.balance = account.balance.saturating_sub(fee_cost);
             account.nonce = current_nonce + U256::one();
             backend.save_account(sender, &account);
-            return TxResp::invalid_nonce(MIN_TRANSACTION_GAS_LIMIT, fee_cost);
+            return (
+                TxResp {
+                    exit_reason: ExitReason::Error(ExitError::Other(
+                        "invalid nonce".into(),
+                    )),
+                    gas_used: MIN_TRANSACTION_GAS_LIMIT,
+                    remain_gas: u64::default(),
+                    fee_cost,
+                    removed: false,
+                    ret: vec![],
+                    logs: vec![],
+                    code_address: None,
+                },
+                PayFee {
+                    source: sender,
+                    value: fee_cost,
+                },
+                vec![],
+            );
         }
 
         account.balance = account.balance.saturating_sub(prepay_gas);
@@ -459,37 +509,22 @@ impl RTEvmExecutor {
 
         backend.save_account(tx.sender, &account);
 
-        if let Some(addr) = CONSTANT_ADDR.get() {
-            for it in transfers.iter() {
-                pnk!(Self::pay_value(
-                    backend,
-                    config,
-                    precompiles,
-                    *addr,
-                    it.source,
-                    it.target,
-                    it.value,
-                ));
-            }
-            pnk!(Self::pay_fee(
-                backend,
-                config,
-                precompiles,
-                *addr,
-                sender,
-                prepay_gas.saturating_sub(remain_gas)
-            ));
-        }
-
-        TxResp {
-            exit_reason: exit,
-            ret: res,
-            remain_gas: remained_gas,
-            gas_used: used_gas,
-            fee_cost: tx_gas_price.saturating_mul(used_gas.into()),
-            logs: vec![],
-            code_address: code_addr,
-            removed: false,
-        }
+        (
+            TxResp {
+                exit_reason: exit,
+                ret: res,
+                remain_gas: remained_gas,
+                gas_used: used_gas,
+                fee_cost: tx_gas_price.saturating_mul(used_gas.into()),
+                logs: vec![],
+                code_address: code_addr,
+                removed: false,
+            },
+            PayFee {
+                source: sender,
+                value: prepay_gas.saturating_sub(remain_gas),
+            },
+            transfers,
+        )
     }
 }

@@ -96,16 +96,21 @@ impl BlockMgmt {
             executor_ctx,
         )
         .c(d!())?;
-        let exec_resp = Executor.exec(&mut evm_exec_backend, txs, system_contracts)?;
+        let (exec_resp, mut system_txs) =
+            Executor.exec(&mut evm_exec_backend, txs, system_contracts)?;
 
         self.mempool.tx_cleanup(txs);
 
         let block = Block::new(proposal, &exec_resp);
+        let mut tmp = txs.to_vec();
+        if !system_txs.is_empty() {
+            tmp.append(&mut system_txs);
+        }
         let receipts = generate_receipts(
             self.block_number,
             block.hash(),
             block.header.state_root,
-            txs,
+            &tmp,
             &exec_resp,
         );
 

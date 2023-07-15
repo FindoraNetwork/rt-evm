@@ -42,7 +42,7 @@ pub trait Executor: Send + Sync {
         backend: &mut B,
         txs: &[SignedTransaction],
         system_contracts: Option<Vec<SystemContract>>,
-    ) -> Result<ExecResp>;
+    ) -> Result<(ExecResp, Vec<SignedTransaction>)>;
 
     fn get_account<B: Backend + ExecutorAdapter>(
         &self,

@@ -178,8 +178,11 @@ impl Executor for RTEvmExecutor {
                     hash: H256::zero(),
                 };
 
-                let stx =
-                    SignedTransaction::try_from(utx).map_err(|e| eg!(e.to_string()))?;
+                let stx = SignedTransaction {
+                    transaction: utx.calc_hash(),
+                    sender: contract.address,
+                    public: None,
+                };
                 tx_hashes.push(stx.transaction.hash);
                 system_txs.push(stx);
             }

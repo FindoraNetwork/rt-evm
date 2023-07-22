@@ -187,10 +187,10 @@ where
     fn check_hubs(&mut self) {
         let now = Instant::now();
         self.blocks_hub.retain(|_, (_, time)| {
-            now.saturating_duration_since(*time) < Duration::from_secs(40)
+            now.saturating_duration_since(*time) > Duration::from_secs(7200)
         });
         self.logs_hub.retain(|_, (_, time)| {
-            now.saturating_duration_since(*time) < Duration::from_secs(40)
+            now.saturating_duration_since(*time) > Duration::from_secs(7200)
         })
     }
 

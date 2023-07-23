@@ -201,7 +201,6 @@ where
                 let header = self
                     .adapter
                     .get_block_header_by_number(None)
-                    .await
                     .unwrap()
                     .unwrap();
                 let from = filter.from_block.as_ref().unwrap_or(&BlockId::Latest);
@@ -224,7 +223,6 @@ where
                 let header = self
                     .adapter
                     .get_block_header_by_number(None)
-                    .await
                     .unwrap()
                     .unwrap();
                 self.blocks_hub
@@ -266,12 +264,7 @@ where
 
     async fn filter_block(&mut self, id: &U256) -> Vec<H256> {
         let (start, time) = self.blocks_hub.get_mut(id).unwrap();
-        let latest = self
-            .adapter
-            .get_block_by_number(None)
-            .await
-            .unwrap()
-            .unwrap();
+        let latest = self.adapter.get_block_by_number(None).unwrap().unwrap();
         if *start >= latest.header.number {
             return Vec::new();
         }
@@ -283,7 +276,6 @@ where
             let block = self
                 .adapter
                 .get_block_by_number(Some(number))
-                .await
                 .unwrap()
                 .unwrap();
 
@@ -308,7 +300,6 @@ where
         let latest_block = self
             .adapter
             .get_block_by_number(None)
-            .await
             .map_err(|e| Error::Custom(e.to_string()))?
             .unwrap();
 
@@ -363,13 +354,11 @@ where
                 let block = self
                     .adapter
                     .get_block_by_number(Some(n))
-                    .await
                     .map_err(|e| Error::Custom(e.to_string()))?
                     .unwrap();
                 let receipts = self
                     .adapter
                     .get_receipts_by_hashes(block.header.number, &block.tx_hashes)
-                    .await
                     .map_err(|e| Error::Custom(e.to_string()))?;
 
                 extend_logs(&mut all_logs, receipts);
@@ -383,7 +372,6 @@ where
                     latest_block.header.number,
                     &latest_block.tx_hashes,
                 )
-                .await
                 .map_err(|e| Error::Custom(e.to_string()))?;
 
             extend_logs(&mut all_logs, receipts);

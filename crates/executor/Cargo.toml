@@ -5,6 +5,7 @@ version = "0.1.0"
 
 [dependencies]
 ruc = { workspace = true }
+
 rlp = { workspace = true }
 evm = { workspace = true }
 

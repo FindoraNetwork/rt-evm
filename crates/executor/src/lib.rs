@@ -33,7 +33,8 @@ use std::collections::BTreeMap;
 pub struct RTEvmExecutor;
 
 impl Executor for RTEvmExecutor {
-    // Used for query data API, this function will not modify the world state.
+    // Used for query data API,
+    // this function will not modify the world state.
     fn call<B: Backend>(
         &self,
         backend: &B,
@@ -124,7 +125,7 @@ impl Executor for RTEvmExecutor {
 
             let mut r = Self::evm_exec(backend, &config, &precompiles, tx);
 
-            backend.commit();
+            // backend.commit();
 
             r.logs = backend.get_logs();
             gas += r.gas_used;
@@ -136,7 +137,7 @@ impl Executor for RTEvmExecutor {
             res.push(r);
         }
 
-        // Get the new root, the look-like `commit` is a noop here
+        // Get the new root
         let new_state_root = backend.commit();
 
         let transaction_root = trie_root_indexed(&tx_hashes);

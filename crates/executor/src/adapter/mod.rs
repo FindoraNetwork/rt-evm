@@ -45,7 +45,7 @@ impl<'a> ExecutorAdapter for RTEvmExecutorAdapter<'a> {
     }
 
     fn commit(&mut self) -> MerkleRoot {
-        self.state.commit().into()
+        self.commit()
     }
 
     fn get(&self, key: &[u8]) -> Option<Vec<u8>> {

@@ -393,7 +393,7 @@ pub fn get_account_by_backend(
     };
 
     let state = trie_db
-        .trie_restore(&WORLD_STATE_META_KEY, None, header.state_root.into())
+        .trie_restore(&WORLD_STATE_META_KEY, header.state_root.into())
         .c(d!())?;
 
     get_account_by_state(&state, address)
@@ -403,7 +403,7 @@ pub fn get_account_by_backend(
                 let storage_root = get_account_by_state(&state, *addr)?.storage_root;
                 if storage_root != NIL_HASH {
                     if let Ok(storage_trie_tree) =
-                        trie_db.trie_restore(addr.as_bytes(), None, storage_root.into())
+                        trie_db.trie_restore(addr.as_bytes(), storage_root.into())
                     {
                         let idx = Hasher::digest(&encode(&[
                             Token::Address(address),
@@ -440,7 +440,7 @@ pub fn save_account_by_backend(
 ) -> Result<()> {
     let header = storage.get_latest_block_header().c(d!())?;
     let mut state = trie_db
-        .trie_restore(&WORLD_STATE_META_KEY, None, header.state_root.into())
+        .trie_restore(&WORLD_STATE_META_KEY, header.state_root.into())
         .c(d!())?;
 
     save_account_by_state(&mut state, address, account).c(d!())

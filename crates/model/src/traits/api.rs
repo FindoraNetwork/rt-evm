@@ -1,51 +1,41 @@
-use crate::{
-    async_trait,
-    types::{
-        Account, Block, BlockNumber, Hash, Header, Proposal, Receipt, SignedTransaction,
-        TxResp, H160, U256,
-    },
+use crate::types::{
+    Account, Block, BlockNumber, Hash, Header, Proposal, Receipt, SignedTransaction,
+    TxResp, H160, U256,
 };
 use ruc::*;
 
-#[async_trait]
 pub trait APIAdapter: Send + Sync {
-    async fn insert_signed_tx(&self, signed_tx: SignedTransaction) -> Result<()>;
+    fn insert_signed_tx(&self, signed_tx: SignedTransaction) -> Result<()>;
 
-    async fn get_block_by_number(&self, height: Option<u64>) -> Result<Option<Block>>;
+    fn get_block_by_number(&self, height: Option<u64>) -> Result<Option<Block>>;
 
-    async fn get_block_by_hash(&self, hash: Hash) -> Result<Option<Block>>;
+    fn get_block_by_hash(&self, hash: Hash) -> Result<Option<Block>>;
 
-    async fn get_block_header_by_number(
-        &self,
-        height: Option<u64>,
-    ) -> Result<Option<Header>>;
+    fn get_block_header_by_number(&self, height: Option<u64>) -> Result<Option<Header>>;
 
-    async fn get_receipt_by_tx_hash(&self, tx_hash: Hash) -> Result<Option<Receipt>>;
+    fn get_receipt_by_tx_hash(&self, tx_hash: Hash) -> Result<Option<Receipt>>;
 
-    async fn get_receipts_by_hashes(
+    fn get_receipts_by_hashes(
         &self,
         block_number: u64,
         tx_hashes: &[Hash],
     ) -> Result<Vec<Option<Receipt>>>;
 
-    async fn get_tx_by_hash(&self, tx_hash: Hash) -> Result<Option<SignedTransaction>>;
+    fn get_tx_by_hash(&self, tx_hash: Hash) -> Result<Option<SignedTransaction>>;
 
-    async fn get_txs_by_hashes(
+    fn get_txs_by_hashes(
         &self,
         block_number: u64,
         tx_hashes: &[Hash],
     ) -> Result<Vec<Option<SignedTransaction>>>;
 
-    async fn get_account(
-        &self,
-        address: H160,
-        number: Option<BlockNumber>,
-    ) -> Result<Account>;
+    fn get_account(&self, address: H160, number: Option<BlockNumber>)
+    -> Result<Account>;
 
-    async fn get_pending_tx_count(&self, address: H160) -> Result<U256>;
+    fn get_pending_tx_count(&self, address: H160) -> Result<U256>;
 
     #[allow(clippy::too_many_arguments)]
-    async fn evm_call(
+    fn evm_call(
         &self,
         from: Option<H160>,
         to: Option<H160>,
@@ -57,9 +47,9 @@ pub trait APIAdapter: Send + Sync {
         proposal: Proposal,
     ) -> Result<TxResp>;
 
-    async fn get_code_by_hash(&self, hash: &Hash) -> Result<Option<Vec<u8>>>;
+    fn get_code_by_hash(&self, hash: &Hash) -> Result<Option<Vec<u8>>>;
 
-    async fn get_storage_at(
+    fn get_storage_at(
         &self,
         address: H160,
         position: U256,

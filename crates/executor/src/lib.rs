@@ -276,7 +276,7 @@ impl RTEvmExecutor {
 
         let metadata = StackSubstateMetadata::new(gas_limit.as_u64(), config);
         let mut executor = StackExecutor::new_with_precompiles(
-            MemoryStackStateWapper::new(metadata, backend),
+            MemoryStackState::new(metadata, backend),
             config,
             precompiles,
         );

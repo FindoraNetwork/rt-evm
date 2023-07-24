@@ -84,11 +84,7 @@ where
     Adapter: APIAdapter + 'static,
 {
     pub async fn new(adapter: Arc<Adapter>, recv: Receiver<RawHub>) -> Self {
-        let latest = adapter
-            .get_block_header_by_number(None)
-            .await
-            .unwrap()
-            .unwrap();
+        let latest = adapter.get_block_header_by_number(None).unwrap().unwrap();
 
         Self {
             log_hubs: Vec::new(),
@@ -105,12 +101,7 @@ where
         self.sync_hubs.retain(|hub| !hub.sink.is_closed());
         self.log_hubs.retain(|hub| !hub.sink.is_closed());
 
-        let latest_block = self
-            .adapter
-            .get_block_by_number(None)
-            .await
-            .unwrap()
-            .unwrap();
+        let latest_block = self.adapter.get_block_by_number(None).unwrap().unwrap();
 
         if self.current_number == latest_block.header.number {
             return;
@@ -125,7 +116,6 @@ where
                 let block = self
                     .adapter
                     .get_block_by_number(Some(number))
-                    .await
                     .unwrap()
                     .unwrap();
 
@@ -160,7 +150,6 @@ where
                     let block = self
                         .adapter
                         .get_block_by_number(Some(number))
-                        .await
                         .unwrap()
                         .unwrap();
 
@@ -174,7 +163,6 @@ where
                 let receipts = self
                     .adapter
                     .get_receipts_by_hashes(number, &tx_hashes)
-                    .await
                     .unwrap();
 
                 let mut index = 0;

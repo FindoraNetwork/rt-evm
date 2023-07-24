@@ -65,11 +65,10 @@ impl<'a> ExecutorAdapter for RTEvmExecutorAdapter<'a> {
                     let storage_root =
                         get_account_by_state(&self.state, *addr)?.storage_root;
                     if storage_root != NIL_HASH {
-                        if let Ok(storage_trie_tree) = self.trie_db.trie_restore(
-                            addr.as_bytes(),
-                            None,
-                            storage_root.into(),
-                        ) {
+                        if let Ok(storage_trie_tree) = self
+                            .trie_db
+                            .trie_restore(addr.as_bytes(), storage_root.into())
+                        {
                             let idx = Hasher::digest(&encode(&[
                                 Token::Address(address),
                                 Token::Uint(*BALANCE_SLOT.get().c(d!())?),
@@ -188,7 +187,7 @@ impl<'a> Backend for RTEvmExecutorAdapter<'a> {
                         Ok(H256::default())
                     } else {
                         self.trie_db
-                            .trie_restore(address.as_bytes(), None, storage_root.into())
+                            .trie_restore(address.as_bytes(), storage_root.into())
                             .map(|trie| match get_with_cache(&trie, index.as_bytes()) {
                                 Ok(Some(res)) => H256::from_slice(res.as_ref()),
                                 _ => H256::default(),
@@ -246,11 +245,8 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         trie_db: &'a MptStore,
         storage: &'a Storage,
         exec_ctx: ExecutorContext,
-        world_state_cache_size: Option<usize>,
     ) -> Result<Self> {
-        let state = trie_db
-            .trie_create(&WORLD_STATE_META_KEY, world_state_cache_size, false)
-            .c(d!())?;
+        let state = trie_db.trie_create(&WORLD_STATE_META_KEY, false).c(d!())?;
         Ok(RTEvmExecutorAdapter {
             state,
             trie_db,
@@ -266,7 +262,7 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         exec_ctx: ExecutorContext,
     ) -> Result<Self> {
         let state = trie_db
-            .trie_restore(&WORLD_STATE_META_KEY, None, state_root.into())
+            .trie_restore(&WORLD_STATE_META_KEY, state_root.into())
             .c(d!())?;
 
         Ok(RTEvmExecutorAdapter {
@@ -303,19 +299,19 @@ impl<'a> RTEvmExecutorAdapter<'a> {
         }
 
         let storage_trie = if reset_storage {
-            self.trie_db
-                .trie_create(address.as_bytes(), None, true)
-                .c(d!())
+            self.trie_db.trie_create(address.as_bytes(), true).c(d!())
         } else if existing {
             self.trie_db
-                .trie_restore(address.as_bytes(), None, old_account.storage_root.into())
+                .trie_restore(address.as_bytes(), old_account.storage_root.into())
                 .c(d!())
         } else {
             // this address does not exist in the world state,
             // so we reset it in the trie backend db also.
-            self.trie_db
-                .trie_create(address.as_bytes(), None, true)
-                .c(d!("{}, {:?}", address, address.as_bytes()))
+            self.trie_db.trie_create(address.as_bytes(), true).c(d!(
+                "{}, {:?}",
+                address,
+                address.as_bytes()
+            ))
         };
 
         let mut storage_trie = pnk!(storage_trie);

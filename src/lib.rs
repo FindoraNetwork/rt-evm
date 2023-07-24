@@ -85,18 +85,13 @@ impl EvmRuntime {
     pub fn create(
         chain_id: u64,
         token_distributions: &[TokenDistributon],
-        world_state_cache_size: Option<usize>,
     ) -> Result<Self> {
         let r = Self::new(chain_id, MptStore::new(), Storage::default());
 
         {
-            let mut exector_adapter = RTEvmExecutorAdapter::new(
-                &r.trie_db,
-                &r.storage,
-                Default::default(),
-                world_state_cache_size,
-            )
-            .c(d!())?;
+            let mut exector_adapter =
+                RTEvmExecutorAdapter::new(&r.trie_db, &r.storage, Default::default())
+                    .c(d!())?;
 
             token_distributions
                 .iter()
@@ -171,12 +166,11 @@ impl EvmRuntime {
     pub fn restore_or_create(
         chain_id: u64,
         token_distributions: &[TokenDistributon],
-        world_state_cache_size: Option<usize>,
     ) -> Result<Self> {
         if let Some(rt) = Self::restore().c(d!())? {
             Ok(rt)
         } else {
-            Self::create(chain_id, token_distributions, world_state_cache_size).c(d!())
+            Self::create(chain_id, token_distributions).c(d!())
         }
     }
 
@@ -255,11 +249,11 @@ impl EvmRuntime {
         .c(d!())?;
 
         if let Some(hdr) = http_hdr {
-            tokio::spawn(async { hdr.await });
+            tokio::spawn(hdr);
         }
 
         if let Some(hdr) = ws_hdr {
-            tokio::spawn(async { hdr.await });
+            tokio::spawn(hdr);
         }
 
         Ok(())

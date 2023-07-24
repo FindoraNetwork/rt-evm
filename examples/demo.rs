@@ -41,7 +41,6 @@ impl Config {
         let rt = EvmRuntime::restore_or_create(
             self.chain_id,
             &self.genesis_token_distributions,
-            None,
         )
         .c(d!())?;
 
@@ -79,7 +78,7 @@ impl Config {
             // take at most 1000 transactions to propose a new block
             let txs = evm_rt.mempool_handler().tx_take_propose(1000);
 
-            let header = producer.produce_block(txs.clone(), None).c(d!())?;
+            let header = producer.produce_block(txs.clone()).c(d!())?;
             dbg!(&header);
         }
     }

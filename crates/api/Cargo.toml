@@ -18,6 +18,7 @@ rt-evm-model = { workspace = true }
 rt-evm-executor = { workspace = true }
 rt-evm-mempool = { workspace = true }
 rt-evm-storage = { workspace = true }
+rt-evm-blockmgmt = { workspace = true }
 
 [dev-dependencies]
 fastrand = "1.8"

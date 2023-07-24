@@ -1,7 +1,6 @@
 use rt_evm_executor::{RTEvmExecutor, RTEvmExecutorAdapter};
 use rt_evm_mempool::Mempool;
 use rt_evm_model::{
-    async_trait,
     codec::ProtocolCodec,
     traits::{
         APIAdapter, BlockStorage, Executor, ExecutorAdapter, TxStorage, BALANCE_SLOT,
@@ -39,13 +38,13 @@ impl DefaultAPIAdapter {
         }
     }
 
-    pub async fn evm_backend(
+    pub fn evm_backend(
         &self,
         number: Option<BlockNumber>,
     ) -> Result<RTEvmExecutorAdapter> {
         let block = self
             .get_block_by_number(number)
-            .await?
+            .c(d!())?
             .c(d!("Cannot get {:?} block", number))?;
         let state_root = block.header.state_root;
         let proposal = Proposal::from(&block);
@@ -59,38 +58,34 @@ impl DefaultAPIAdapter {
     }
 }
 
-#[async_trait]
 impl APIAdapter for DefaultAPIAdapter {
-    async fn insert_signed_tx(&self, signed_tx: SignedTransaction) -> Result<()> {
+    fn insert_signed_tx(&self, signed_tx: SignedTransaction) -> Result<()> {
         self.mempool.tx_insert(signed_tx, true).c(d!())
     }
 
-    async fn get_block_by_number(&self, height: Option<u64>) -> Result<Option<Block>> {
+    fn get_block_by_number(&self, height: Option<u64>) -> Result<Option<Block>> {
         match height {
             Some(number) => self.storage.get_block(number),
             None => self.storage.get_latest_block().map(Option::Some),
         }
     }
 
-    async fn get_block_by_hash(&self, hash: Hash) -> Result<Option<Block>> {
+    fn get_block_by_hash(&self, hash: Hash) -> Result<Option<Block>> {
         self.storage.get_block_by_hash(&hash)
     }
 
-    async fn get_block_header_by_number(
-        &self,
-        number: Option<u64>,
-    ) -> Result<Option<Header>> {
+    fn get_block_header_by_number(&self, number: Option<u64>) -> Result<Option<Header>> {
         match number {
             Some(num) => self.storage.get_block_header(num),
             None => self.storage.get_latest_block_header().map(Option::Some),
         }
     }
 
-    async fn get_receipt_by_tx_hash(&self, tx_hash: Hash) -> Result<Option<Receipt>> {
+    fn get_receipt_by_tx_hash(&self, tx_hash: Hash) -> Result<Option<Receipt>> {
         self.storage.get_receipt_by_hash(&tx_hash)
     }
 
-    async fn get_receipts_by_hashes(
+    fn get_receipts_by_hashes(
         &self,
         block_number: u64,
         tx_hashes: &[Hash],
@@ -98,11 +93,11 @@ impl APIAdapter for DefaultAPIAdapter {
         self.storage.get_receipts(block_number, tx_hashes)
     }
 
-    async fn get_tx_by_hash(&self, tx_hash: Hash) -> Result<Option<SignedTransaction>> {
+    fn get_tx_by_hash(&self, tx_hash: Hash) -> Result<Option<SignedTransaction>> {
         self.storage.get_tx_by_hash(&tx_hash)
     }
 
-    async fn get_txs_by_hashes(
+    fn get_txs_by_hashes(
         &self,
         block_number: u64,
         tx_hashes: &[Hash],
@@ -110,12 +105,12 @@ impl APIAdapter for DefaultAPIAdapter {
         self.storage.get_txs(block_number, tx_hashes)
     }
 
-    async fn get_account(
+    fn get_account(
         &self,
         address: H160,
         number: Option<BlockNumber>,
     ) -> Result<Account> {
-        let state = self.evm_backend(number).await.c(d!())?;
+        let state = self.evm_backend(number).c(d!())?;
         let mut account = match state.get(address.as_bytes()) {
             Some(bytes) => Account::decode(bytes),
             None => Ok(Account {
@@ -140,9 +135,9 @@ impl APIAdapter for DefaultAPIAdapter {
             .storage_root;
 
             if storage_root != NIL_HASH {
-                if let Ok(storage_trie_tree) =
-                    self.trie_db
-                        .trie_restore(addr.as_bytes(), None, storage_root.into())
+                if let Ok(storage_trie_tree) = self
+                    .trie_db
+                    .trie_restore(addr.as_bytes(), storage_root.into())
                 {
                     let idx = Hasher::digest(&encode(&[
                         Token::Address(address),
@@ -157,11 +152,11 @@ impl APIAdapter for DefaultAPIAdapter {
         Ok(account)
     }
 
-    async fn get_pending_tx_count(&self, address: H160) -> Result<U256> {
+    fn get_pending_tx_count(&self, address: H160) -> Result<U256> {
         Ok(self.mempool.tx_pending_cnt(Some(address)).into())
     }
 
-    async fn evm_call(
+    fn evm_call(
         &self,
         from: Option<H160>,
         to: Option<H160>,
@@ -186,14 +181,14 @@ impl APIAdapter for DefaultAPIAdapter {
             .map(|gas| gas.as_u64())
             .unwrap_or(MAX_BLOCK_GAS_LIMIT);
 
-        Ok(RTEvmExecutor::default().call(&backend, gas_limit, from, to, value, data))
+        Ok(RTEvmExecutor.call(&backend, gas_limit, from, to, value, data))
     }
 
-    async fn get_code_by_hash(&self, hash: &Hash) -> Result<Option<Vec<u8>>> {
+    fn get_code_by_hash(&self, hash: &Hash) -> Result<Option<Vec<u8>>> {
         self.storage.get_code_by_hash(hash)
     }
 
-    async fn get_storage_at(
+    fn get_storage_at(
         &self,
         address: H160,
         position: U256,
@@ -201,7 +196,7 @@ impl APIAdapter for DefaultAPIAdapter {
     ) -> Result<Vec<u8>> {
         let state_trie_tree = self
             .trie_db
-            .trie_restore(&WORLD_STATE_META_KEY, None, state_root.into())
+            .trie_restore(&WORLD_STATE_META_KEY, state_root.into())
             .c(d!())?;
 
         let raw_account = state_trie_tree
@@ -213,7 +208,7 @@ impl APIAdapter for DefaultAPIAdapter {
 
         let storage_trie_tree = self
             .trie_db
-            .trie_restore(address.as_bytes(), None, account.storage_root.into())
+            .trie_restore(address.as_bytes(), account.storage_root.into())
             .c(d!())?;
 
         let hash: Hash = BigEndianHash::from_uint(&position);

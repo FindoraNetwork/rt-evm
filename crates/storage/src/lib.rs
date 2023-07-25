@@ -490,13 +490,14 @@ pub fn remove_with_cache(state: &mut MptOnce, key: &[u8]) -> Result<()> {
 }
 
 pub fn insert_with_cache(state: &mut MptOnce, key: &[u8], value: &[u8]) -> Result<()> {
-    state.insert(key, value).map(|v| {
-        let root = state.root();
-        if QUERY_CACHE.read().get(&(root, key.to_owned())).is_some() {
-            QUERY_CACHE
-                .write()
-                .insert((root, key.to_owned()), Some(value.to_owned()));
-        }
-        v
-    })
+    state.insert(key, value)
+    // .map(|v| {
+    //     let root = state.root();
+    //     if QUERY_CACHE.read().get(&(root, key.to_owned())).is_some() {
+    //         QUERY_CACHE
+    //             .write()
+    //             .insert((root, key.to_owned()), Some(value.to_owned()));
+    //     }
+    //     v
+    // })
 }

@@ -42,8 +42,6 @@ impl<Adapter: APIAdapter> Web3RpcImpl<Adapter> {
             return Err(eg!("from and to are both None"));
         }
 
-        let lk = rt_evm_blockmgmt::EXEC_LK.read();
-
         let header = self
             .adapter
             .get_block_header_by_number(number)
@@ -64,10 +62,7 @@ impl<Adapter: APIAdapter> Web3RpcImpl<Adapter> {
                 mock_header.into(),
             )
             .c(d!())
-            .map(|ret| {
-                assert!(*lk);
-                ret
-            })
+            .map(|ret| ret)
     }
 }
 
@@ -201,7 +196,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         address: H160,
         number: Option<BlockId>,
     ) -> RpcResult<U256> {
-        let lk = rt_evm_blockmgmt::EXEC_LK.read();
         match number.unwrap_or_default() {
             BlockId::Pending => {
                 let pending_tx_count = self
@@ -217,10 +211,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
             b => Ok(self
                 .adapter
                 .get_account(address, b.into())
-                .map(|account| {
-                    assert!(*lk);
-                    account.nonce
-                })
+                .map(|account| account.nonce)
                 .unwrap_or_default()),
         }
     }
@@ -238,14 +229,10 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         address: H160,
         number: Option<BlockId>,
     ) -> RpcResult<U256> {
-        let lk = rt_evm_blockmgmt::EXEC_LK.read();
         Ok(self
             .adapter
             .get_account(address, number.unwrap_or_default().into())
-            .map_or(U256::zero(), |account| {
-                assert!(*lk);
-                account.balance
-            }))
+            .map_or(U256::zero(), |account| account.balance))
     }
 
     async fn call(
@@ -353,7 +340,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
     }
 
     async fn get_code(&self, address: H160, number: Option<BlockId>) -> RpcResult<Hex> {
-        let lk = rt_evm_blockmgmt::EXEC_LK.read();
         let account = self
             .adapter
             .get_account(address, number.unwrap_or_default().into())
@@ -363,7 +349,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
             .adapter
             .get_code_by_hash(&account.code_hash)
             .map_err(|e| Error::Custom(e.to_string()))?;
-        assert!(*lk);
+
         if let Some(code_bytes) = code_result {
             Ok(Hex::encode(code_bytes))
         } else {

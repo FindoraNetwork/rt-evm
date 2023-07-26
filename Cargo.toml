@@ -92,5 +92,3 @@ benchmark = ["rt-evm-api/benchmark", "rt-evm-executor/benchmark", "rt-evm-mempoo
 vsdb_bcs_codec = ["rt-evm-storage/vsdb_bcs_codec"]
 vsdb_json_codec = ["rt-evm-storage/vsdb_json_codec"]
 vsdb_msgpack_codec = ["rt-evm-storage/vsdb_msgpack_codec"]
-
-[patch.crates-io]

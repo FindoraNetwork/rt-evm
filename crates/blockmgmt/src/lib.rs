@@ -1,8 +1,6 @@
 #![deny(warnings)]
 #![cfg_attr(feature = "benchmark", allow(warnings))]
 
-use once_cell::sync::Lazy;
-use parking_lot::RwLock;
 use rayon::prelude::*;
 use rt_evm_executor::{
     logs_bloom, trie_root_indexed, trie_root_txs, RTEvmExecutor as Executor,
@@ -20,9 +18,6 @@ use rt_evm_model::{
 use rt_evm_storage::{MptStore, Storage};
 use ruc::*;
 use std::sync::Arc;
-
-/// Seperate `evm_call` and `evm_exec`
-pub static EXEC_LK: Lazy<RwLock<bool>> = Lazy::new(|| RwLock::new(true));
 
 pub struct BlockMgmt {
     pub proposer: H160,
@@ -74,8 +69,6 @@ impl BlockMgmt {
         txs: Vec<SignedTransaction>,
         system_contracts: Option<Vec<SystemContract>>,
     ) -> Result<Header> {
-        let lk = EXEC_LK.write();
-
         let (block, receipts) = self.generate_block(&txs, system_contracts).c(d!())?;
         let header = block.header.clone();
 
@@ -84,8 +77,6 @@ impl BlockMgmt {
             .insert_receipts(header.number, receipts)
             .c(d!())?;
         self.storage.set_block(block).c(d!())?;
-
-        assert!(*lk);
 
         Ok(header)
     }

@@ -13,8 +13,9 @@ use rt_evm_model::{
     lazy::PROTOCOL_VERSION,
     traits::APIAdapter,
     types::{
-        Block, BlockNumber, Bytes, Hash, Header, Hex, Receipt, SignedTransaction,
-        TxResp, UnverifiedTransaction, H160, H256, H64, MAX_BLOCK_GAS_LIMIT, U256,
+        Block, BlockNumber, Bytes, ExitError, ExitReason, Hash, Header, Hex, Receipt,
+        SignedTransaction, TxResp, UnverifiedTransaction, H160, H256, H64,
+        MAX_BLOCK_GAS_LIMIT, MAX_PRIORITY_FEE_PER_GAS, U256,
     },
 };
 use ruc::*;
@@ -31,7 +32,7 @@ impl<Adapter: APIAdapter> Web3RpcImpl<Adapter> {
         Self { adapter }
     }
 
-    async fn call_evm(
+    fn call_evm(
         &self,
         req: Web3CallRequest,
         data: Bytes,
@@ -44,8 +45,8 @@ impl<Adapter: APIAdapter> Web3RpcImpl<Adapter> {
         let header = self
             .adapter
             .get_block_header_by_number(number)
-            .await?
-            .c(d!("Cannot get {:?} header", number))?;
+            .c(d!("Cannot get {:?} header", number))?
+            .c(d!())?;
 
         let mock_header = mock_header_by_call_req(header, &req);
 
@@ -60,7 +61,7 @@ impl<Adapter: APIAdapter> Web3RpcImpl<Adapter> {
                 mock_header.state_root,
                 mock_header.into(),
             )
-            .await
+            .c(d!())
     }
 }
 
@@ -76,7 +77,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
 
         self.adapter
             .insert_signed_tx(stx)
-            .await
             .map_err(|e| Error::Custom(e.to_string()))?;
 
         Ok(hash)
@@ -86,14 +86,12 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         let res = self
             .adapter
             .get_tx_by_hash(hash)
-            .await
             .map_err(|e| Error::Custom(e.to_string()))?;
 
         if let Some(stx) = res {
             if let Some(receipt) = self
                 .adapter
                 .get_receipt_by_tx_hash(hash)
-                .await
                 .map_err(|e| Error::Custom(e.to_string()))?
             {
                 Ok(Some((stx, receipt).into()))
@@ -116,7 +114,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         let block = self
             .adapter
             .get_block_by_number(number.into())
-            .await
             .map_err(|e| Error::Custom(e.to_string()))?;
 
         match block {
@@ -131,7 +128,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
                         let tx = self
                             .adapter
                             .get_tx_by_hash(tx.get_hash())
-                            .await
                             .map_err(|e| Error::Custom(e.to_string()))?
                             .unwrap();
 
@@ -160,7 +156,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         let block = self
             .adapter
             .get_block_by_hash(hash)
-            .await
             .map_err(|e| Error::Custom(e.to_string()))?;
 
         match block {
@@ -175,7 +170,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
                         let tx = self
                             .adapter
                             .get_tx_by_hash(tx.get_hash())
-                            .await
                             .map_err(|e| Error::Custom(e.to_string()))?
                             .unwrap();
 
@@ -206,19 +200,16 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
                 let pending_tx_count = self
                     .adapter
                     .get_pending_tx_count(address)
-                    .await
                     .map_err(|e| Error::Custom(e.to_string()))?;
                 Ok(self
                     .adapter
                     .get_account(address, BlockId::Pending.into())
-                    .await
                     .map(|account| account.nonce + pending_tx_count)
                     .unwrap_or_default())
             }
             b => Ok(self
                 .adapter
                 .get_account(address, b.into())
-                .await
                 .map(|account| account.nonce)
                 .unwrap_or_default()),
         }
@@ -227,7 +218,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
     async fn block_number(&self) -> RpcResult<U256> {
         self.adapter
             .get_block_header_by_number(None)
-            .await
             .map_err(|e| Error::Custom(e.to_string()))?
             .map(|h| U256::from(h.number))
             .ok_or_else(|| Error::Custom("Cannot get latest block header".to_string()))
@@ -241,7 +231,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         Ok(self
             .adapter
             .get_account(address, number.unwrap_or_default().into())
-            .await
             .map_or(U256::zero(), |account| account.balance))
     }
 
@@ -265,7 +254,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
             .unwrap_or_default();
         let resp = self
             .call_evm(req, data_bytes, number.unwrap_or_default().into())
-            .await
             .map_err(|e| Error::Custom(e.to_string()))?;
 
         if resp.exit_reason.is_succeed() {
@@ -303,11 +291,47 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
             .map(|hex| hex.as_bytes())
             .unwrap_or_default();
         let resp = self
-            .call_evm(req, data_bytes, num)
-            .await
+            .call_evm(req.clone(), data_bytes.clone(), num)
             .map_err(|e| Error::Custom(e.to_string()))?;
 
         if resp.exit_reason.is_succeed() {
+            // This parameter is used as the divisor and cannot be 0
+            let gas_limit = if let Some(gas) = req.gas.as_ref() {
+                alt!(*gas > U256::from(u32::MAX), u32::MAX, gas.as_u32()) as u64
+            } else {
+                u32::MAX as u64
+            };
+
+            let mut highest = U256::from(gas_limit);
+            let mut lowest = U256::from(21_000);
+            let mut mid =
+                (U256::from(resp.gas_used) * U256::from(3)).min((highest + lowest) / 2);
+            let mut previous_highest = highest;
+
+            while (highest - lowest) > U256::one() {
+                let mut req2 = req.clone();
+                req2.gas = Some(mid);
+                let resp2 = self
+                    .call_evm(req2, data_bytes.clone(), num)
+                    .map_err(|e| Error::Custom(e.to_string()))?;
+                match resp2.exit_reason {
+                    ExitReason::Succeed(_) => {
+                        highest = mid;
+                        if (previous_highest - highest) * 10 / previous_highest
+                            < U256::one()
+                        {
+                            return Ok(highest);
+                        }
+                        previous_highest = highest;
+                    }
+                    ExitReason::Revert(_) | ExitReason::Error(ExitError::OutOfGas) => {
+                        lowest = mid;
+                    }
+                    other => error_on_execution_failure(&other, &resp2.ret)?,
+                }
+                mid = (highest + lowest) / 2;
+            }
+
             return Ok(resp.gas_used.into());
         }
 
@@ -318,13 +342,11 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         let account = self
             .adapter
             .get_account(address, number.unwrap_or_default().into())
-            .await
             .map_err(|e| Error::Custom(e.to_string()))?;
 
         let code_result = self
             .adapter
             .get_code_by_hash(&account.code_hash)
-            .await
             .map_err(|e| Error::Custom(e.to_string()))?;
         if let Some(code_bytes) = code_result {
             Ok(Hex::encode(code_bytes))
@@ -337,7 +359,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         let block = self
             .adapter
             .get_block_by_number(number.into())
-            .await
             .map_err(|e| Error::Custom(e.to_string()))?;
         let count = match block {
             Some(bc) => bc.tx_hashes.len(),
@@ -350,14 +371,12 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         let res = self
             .adapter
             .get_tx_by_hash(hash)
-            .await
             .map_err(|e| Error::Custom(e.to_string()))?;
 
         if let Some(stx) = res {
             if let Some(receipt) = self
                 .adapter
                 .get_receipt_by_tx_hash(hash)
-                .await
                 .map_err(|e| Error::Custom(e.to_string()))?
             {
                 Ok(Some(Web3Receipt::new(receipt, stx)))
@@ -378,6 +397,10 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
 
     async fn gas_price(&self) -> RpcResult<U256> {
         Ok(U256::from(8u64))
+    }
+
+    async fn get_max_priority_fee_per_gas(&self) -> RpcResult<U256> {
+        Ok(U256::from(MAX_PRIORITY_FEE_PER_GAS))
     }
 
     async fn get_logs(&self, filter: Web3Filter) -> RpcResult<Vec<Web3Log>> {
@@ -428,7 +451,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
             match position {
                 BlockPosition::Hash(hash) => match adapter
                     .get_block_by_hash(hash)
-                    .await
                     .map_err(|e| Error::Custom(e.to_string()))?
                 {
                     Some(block) => {
@@ -437,7 +459,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
                                 block.header.number,
                                 &block.tx_hashes,
                             )
-                            .await
                             .map_err(|e| Error::Custom(e.to_string()))?;
                         extend_logs(logs, receipts, early_return);
                         Ok(())
@@ -451,12 +472,10 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
                 BlockPosition::Num(n) => {
                     let block = adapter
                         .get_block_by_number(Some(n))
-                        .await
                         .map_err(|e| Error::Custom(e.to_string()))?
                         .unwrap();
                     let receipts = adapter
                         .get_receipts_by_hashes(block.header.number, &block.tx_hashes)
-                        .await
                         .map_err(|e| Error::Custom(e.to_string()))?;
 
                     extend_logs(logs, receipts, early_return);
@@ -465,7 +484,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
                 BlockPosition::Block(block) => {
                     let receipts = adapter
                         .get_receipts_by_hashes(block.header.number, &block.tx_hashes)
-                        .await
                         .map_err(|e| Error::Custom(e.to_string()))?;
 
                     extend_logs(logs, receipts, early_return);
@@ -493,7 +511,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
                 let latest_block = self
                     .adapter
                     .get_block_by_number(None)
-                    .await
                     .map_err(|e| Error::Custom(e.to_string()))?
                     .unwrap();
                 let latest_number = latest_block.header.number;
@@ -508,10 +525,11 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
 
                     (
                         filter.from_block.map(convert).unwrap_or(latest_number),
-                        std::cmp::min(
-                            filter.to_block.map(convert).unwrap_or(latest_number),
-                            latest_number,
-                        ),
+                        filter
+                            .to_block
+                            .map(convert)
+                            .unwrap_or(latest_number)
+                            .min(latest_number),
                     )
                 };
 
@@ -578,7 +596,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         Ok(self
             .adapter
             .get_block_by_hash(hash)
-            .await
             .map_err(|e| Error::Custom(e.to_string()))?
             .map(|b| U256::from(b.tx_hashes.len()))
             .unwrap_or_default())
@@ -603,7 +620,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         let block = self
             .adapter
             .get_block_by_hash(hash)
-            .await
             .map_err(|e| Error::Custom(e.to_string()))?;
 
         if let Some(block) = block {
@@ -634,7 +650,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         let block = self
             .adapter
             .get_block_by_number(number.into())
-            .await
             .map_err(|e| Error::Custom(e.to_string()))?;
 
         if let Some(block) = block {
@@ -654,13 +669,11 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         let block = self
             .adapter
             .get_block_by_number(number.unwrap_or_default().into())
-            .await
             .map_err(|e| Error::Custom(e.to_string()))?
             .ok_or_else(|| Error::Custom("Can't find this block".to_string()))?;
         let value = self
             .adapter
             .get_storage_at(address, position, block.header.state_root)
-            .await
             .unwrap_or_else(|_| H256::default().as_bytes().to_vec());
 
         Ok(Hex::encode(value))
@@ -774,5 +787,33 @@ pub fn from_receipt_to_web3_log(
             };
             logs.push(web3_log);
         }
+    }
+}
+
+pub fn error_on_execution_failure(reason: &ExitReason, data: &[u8]) -> RpcResult<()> {
+    match reason {
+        ExitReason::Succeed(_) => Ok(()),
+        ExitReason::Error(e) => {
+            if *e == ExitError::OutOfGas {
+                // `ServerError(0)` will be useful in estimate gas
+                return Err(Error::Custom("out of gas".to_string()));
+            }
+            Err(Error::Custom("Internal".to_string()))
+        }
+        ExitReason::Revert(_) => {
+            let mut message =
+                "VM Exception while processing transaction: revert".to_string();
+            // A minimum size of error function selector (4) + offset (32) + string length (32)
+            // should contain a utf-8 encoded revert reason.
+            if data.len() > 68 {
+                let message_len = data[36..68].iter().sum::<u8>();
+                let body: &[u8] = &data[68..68 + message_len as usize];
+                if let Ok(reason) = std::str::from_utf8(body) {
+                    message = format!("{message} {reason}");
+                }
+            }
+            Err(Error::Custom(message))
+        }
+        ExitReason::Fatal(e) => Err(Error::Custom(format!("evm fatal: {e:?}"))),
     }
 }

@@ -52,8 +52,8 @@ sha2 = "0.10"
 ripemd = "0.1"
 
 ruc = { version = "5.0.10", features = ["crypto"] }
-vsdb = { version = "0.60.0", default-features = false, features = ["extra_types"] }
-vsdb_trie_db = "0.14.0"
+vsdb = { version = "0.61.0", default-features = false, features = ["rocks_backend", "extra_types"] }
+vsdb_trie_db = "0.20.1"
 
 ####################################################################
 ####################################################################
@@ -91,3 +91,5 @@ benchmark = ["rt-evm-api/benchmark", "rt-evm-executor/benchmark", "rt-evm-mempoo
 vsdb_bcs_codec = ["rt-evm-storage/vsdb_bcs_codec"]
 vsdb_json_codec = ["rt-evm-storage/vsdb_json_codec"]
 vsdb_msgpack_codec = ["rt-evm-storage/vsdb_msgpack_codec"]
+
+[patch.crates-io]

@@ -20,12 +20,11 @@ use evm::{
     CreateScheme,
 };
 use rt_evm_model::{
-    codec::ProtocolCodec,
     traits::{ApplyBackend, Backend, Executor, ExecutorAdapter as Adapter},
     types::{
         data_gas_cost, Account, Config, ExecResp, Hasher, SignedTransaction,
         TransactionAction, TxResp, GAS_CALL_TRANSACTION, GAS_CREATE_TRANSACTION, H160,
-        MIN_TRANSACTION_GAS_LIMIT, NIL_HASH, U256,
+        MIN_TRANSACTION_GAS_LIMIT, U256,
     },
 };
 use std::collections::BTreeMap;
@@ -34,7 +33,8 @@ use std::collections::BTreeMap;
 pub struct RTEvmExecutor;
 
 impl Executor for RTEvmExecutor {
-    // Used for query data API, this function will not modify the world state.
+    // Used for query data API,
+    // this function will not modify the world state.
     fn call<B: Backend>(
         &self,
         backend: &B,
@@ -125,7 +125,7 @@ impl Executor for RTEvmExecutor {
 
             let mut r = Self::evm_exec(backend, &config, &precompiles, tx);
 
-            backend.commit();
+            // backend.commit();
 
             r.logs = backend.get_logs();
             gas += r.gas_used;
@@ -137,7 +137,7 @@ impl Executor for RTEvmExecutor {
             res.push(r);
         }
 
-        // Get the new root, the look-like `commit` is a noop here
+        // Get the new root
         let new_state_root = backend.commit();
 
         let transaction_root = trie_root_indexed(&tx_hashes);
@@ -154,15 +154,7 @@ impl Executor for RTEvmExecutor {
     }
 
     fn get_account<B: Backend + Adapter>(&self, backend: &B, address: &H160) -> Account {
-        match backend.get(address.as_bytes()) {
-            Some(bytes) => Account::decode(bytes).unwrap(),
-            None => Account {
-                nonce: Default::default(),
-                balance: Default::default(),
-                storage_root: NIL_HASH,
-                code_hash: NIL_HASH,
-            },
-        }
+        backend.get_account(*address)
     }
 }
 
@@ -196,6 +188,7 @@ impl RTEvmExecutor {
         backend.save_account(sender, &account);
 
         let metadata = StackSubstateMetadata::new(gas_limit.as_u64(), config);
+
         let mut executor = StackExecutor::new_with_precompiles(
             MemoryStackState::new(metadata, backend),
             config,

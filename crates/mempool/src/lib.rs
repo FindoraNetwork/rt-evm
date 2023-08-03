@@ -2,11 +2,13 @@
 #![cfg_attr(feature = "benchmark", allow(warnings))]
 
 use parking_lot::{Mutex, RwLock};
+use rt_evm_config::{CHECK_POINT_CONFIG, CURRENT_BLOCK_HEIGHT};
 use rt_evm_model::{
     traits::TxStorage,
     types::{
         Account, BlockNumber, Hash, SignedTransaction as SignedTx, H160,
-        MAX_BLOCK_GAS_LIMIT, MIN_TRANSACTION_GAS_LIMIT, U256,
+        MAX_BLOCK_GAS_LIMIT, MIN_TRANSACTION_GAS_LIMIT_V0, MIN_TRANSACTION_GAS_LIMIT_V1,
+        U256,
     },
 };
 use rt_evm_storage::{get_account_by_backend, MptStore, Storage};
@@ -254,13 +256,19 @@ impl TinyMempool {
             return Err(eg!("The 'gas price' exceeds the limition(u64::MAX)"));
         }
 
+        let current_height = CURRENT_BLOCK_HEIGHT.load(AtoOrd::Relaxed);
+
+        let min_gas_limit =
+            if current_height < CHECK_POINT_CONFIG.min_gas_limit_v1_height {
+                U256::from(MIN_TRANSACTION_GAS_LIMIT_V0)
+            } else {
+                U256::from(MIN_TRANSACTION_GAS_LIMIT_V1)
+            };
+
         let gas_limit = *utx.unsigned.gas_limit();
 
-        if gas_limit < MIN_TRANSACTION_GAS_LIMIT.into() {
-            return Err(eg!(
-                "The 'gas limit' less than {}",
-                MIN_TRANSACTION_GAS_LIMIT
-            ));
+        if gas_limit < min_gas_limit {
+            return Err(eg!("The 'gas limit' less than {}", min_gas_limit));
         }
 
         if gas_limit > self.cfg.tx_gas_cap {
@@ -282,7 +290,7 @@ impl TinyMempool {
             return Err(eg!("Invalid nonce"));
         }
 
-        if acc.balance < gas_price.saturating_mul(MIN_TRANSACTION_GAS_LIMIT.into()) {
+        if acc.balance < gas_price.saturating_mul(min_gas_limit) {
             return Err(eg!("Insufficient balance to cover possible gas"));
         }
 

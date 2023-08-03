@@ -21,6 +21,7 @@ use evm::{
     CreateScheme, ExitError, ExitReason, Transfer,
 };
 use memory::MemoryStackStateWapper;
+use rt_evm_config::CHECK_POINT_CONFIG;
 use rt_evm_model::{
     codec::hex_encode,
     lazy::CHAIN_ID,
@@ -32,7 +33,7 @@ use rt_evm_model::{
         data_gas_cost, Account, Config, ExecResp, Hasher, LegacyTransaction,
         SignatureComponents, SignedTransaction, TransactionAction, TxResp,
         UnverifiedTransaction, GAS_CALL_TRANSACTION, GAS_CREATE_TRANSACTION, H160, H256,
-        MIN_TRANSACTION_GAS_LIMIT, U256,
+        MIN_TRANSACTION_GAS_LIMIT_V0, MIN_TRANSACTION_GAS_LIMIT_V1, U256,
     },
 };
 use rt_evm_storage::ethabi::{Function, Param, ParamType, StateMutability, Token};
@@ -468,7 +469,14 @@ impl RTEvmExecutor {
 
         #[cfg(not(feature = "benchmark"))]
         if tx.transaction.unsigned.nonce() != &current_nonce {
-            let fee_cost = tx_gas_price.saturating_mul(MIN_TRANSACTION_GAS_LIMIT.into());
+            let min_gas_limit = if backend.block_number()
+                < U256::from(CHECK_POINT_CONFIG.min_gas_limit_v1_height)
+            {
+                U256::from(MIN_TRANSACTION_GAS_LIMIT_V0)
+            } else {
+                U256::from(MIN_TRANSACTION_GAS_LIMIT_V1)
+            };
+            let fee_cost = tx_gas_price.saturating_mul(min_gas_limit);
             account.balance = account.balance.saturating_sub(fee_cost);
             account.nonce = current_nonce + U256::one();
             backend.save_account(sender, &account);
@@ -477,7 +485,7 @@ impl RTEvmExecutor {
                     exit_reason: ExitReason::Error(ExitError::Other(
                         "invalid nonce".into(),
                     )),
-                    gas_used: MIN_TRANSACTION_GAS_LIMIT,
+                    gas_used: min_gas_limit.as_u64(),
                     remain_gas: u64::default(),
                     fee_cost,
                     removed: false,

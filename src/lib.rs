@@ -6,6 +6,7 @@
 
 pub use rt_evm_api as api;
 pub use rt_evm_blockmgmt as blockmgmt;
+pub use rt_evm_config as config;
 pub use rt_evm_executor as executor;
 pub use rt_evm_mempool as mempool;
 pub use rt_evm_model as model;

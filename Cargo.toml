@@ -1,5 +1,6 @@
 [workspace]
-members = [
+members = [ 
+    "crates/config",
     "crates/api",
     "crates/mempool",
     "crates/executor",
@@ -10,6 +11,7 @@ members = [
 ]
 
 [workspace.dependencies]
+rt-evm-config = { path = "crates/config" }
 rt-evm-api = { path = "crates/api" }
 rt-evm-mempool = { path = "crates/mempool" }
 rt-evm-executor = { path = "crates/executor" }
@@ -26,6 +28,7 @@ ethabi = "18.0.0"
 beef = "0.5"
 jsonrpsee = { version = "0.15", features = ["http-server", "macros", "ws-server"] }
 
+toml = "0.7.6"
 rlp = "0.5"
 rlp-derive = "0.1"
 serde = { version = "1.0", features = ["derive"] }
@@ -70,6 +73,7 @@ vsdb = { workspace = true }
 once_cell = { workspace = true }
 bcs = { workspace = true }
 
+rt-evm-config = { workspace = true }
 rt-evm-api = { workspace = true }
 rt-evm-mempool = { workspace = true }
 rt-evm-executor = { workspace = true }

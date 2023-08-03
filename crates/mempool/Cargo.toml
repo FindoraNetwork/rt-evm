@@ -10,6 +10,7 @@ serde = { workspace = true }
 
 rt-evm-model = { workspace = true }
 rt-evm-storage = { workspace = true }
+rt-evm-config = { workspace = true }
 
 [features]
 default = []

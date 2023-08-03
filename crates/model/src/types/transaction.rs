@@ -13,7 +13,8 @@ pub const GAS_PER_NONZERO_BYTE: u64 = 68;
 pub const GAS_CALL_TRANSACTION: u64 = 21_000;
 pub const GAS_CREATE_TRANSACTION: u64 = 32_000;
 pub const MAX_PRIORITY_FEE_PER_GAS: u64 = 1_337;
-pub const MIN_TRANSACTION_GAS_LIMIT: u64 = 21_000;
+pub const MIN_TRANSACTION_GAS_LIMIT_V0: u64 = 21_000;
+pub const MIN_TRANSACTION_GAS_LIMIT_V1: u64 = 1000000000000;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub enum UnsignedTransaction {
@@ -408,7 +409,11 @@ impl SignatureComponents {
     }
 
     pub fn extract_chain_id(v: u64) -> Option<u64> {
-        if v >= 35 { Some((v - 35) / 2u64) } else { None }
+        if v >= 35 {
+            Some((v - 35) / 2u64)
+        } else {
+            None
+        }
     }
 
     #[allow(clippy::len_without_is_empty)]

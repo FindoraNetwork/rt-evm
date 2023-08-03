@@ -1,0 +1,10 @@
+[package]
+name = "rt-evm-config"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies] 
+once_cell = { workspace = true }
+toml = { workspace = true }
+ruc = { workspace = true }
+serde = { workspace = true }

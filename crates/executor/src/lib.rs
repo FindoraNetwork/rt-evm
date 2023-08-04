@@ -561,7 +561,7 @@ impl RTEvmExecutor {
                 return (
                     TxResp {
                         exit_reason: ExitReason::Error(ExitError::Other(
-                            "invalid nonce".into(),
+                            "gas to low".into(),
                         )),
                         gas_used: min_gas_limit.as_u64(),
                         remain_gas: u64::default(),

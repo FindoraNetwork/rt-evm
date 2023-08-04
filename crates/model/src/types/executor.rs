@@ -3,10 +3,10 @@ pub use evm::{
     backend::Log, Config, ExitError, ExitFatal, ExitReason, ExitRevert, ExitSucceed,
 };
 
-use rlp_derive::{RlpDecodable, RlpEncodable};
-
+use super::MIN_GAS_PRICE;
 use crate::codec::ProtocolCodec;
 use crate::types::{Hash, Hasher, Header, MerkleRoot, Proposal, H160, U256};
+use rlp_derive::{RlpDecodable, RlpEncodable};
 
 pub const WORLD_STATE_META_KEY: [u8; 1] = [0];
 
@@ -87,7 +87,7 @@ impl From<&Proposal> for ExecutorContext {
             chain_id: p.chain_id.into(),
             difficulty: U256::one(),
             origin: p.proposer,
-            gas_price: U256::one(),
+            gas_price: U256::from(MIN_GAS_PRICE),
             block_gas_limit: p.gas_limit,
             block_base_fee_per_gas: p.base_fee_per_gas,
             logs: Vec::new(),
@@ -105,7 +105,7 @@ impl From<&Header> for ExecutorContext {
             chain_id: h.chain_id.into(),
             difficulty: U256::one(),
             origin: h.proposer,
-            gas_price: U256::one(),
+            gas_price: U256::from(MIN_GAS_PRICE),
             block_gas_limit: h.gas_limit,
             block_base_fee_per_gas: h.base_fee_per_gas,
             logs: Vec::new(),

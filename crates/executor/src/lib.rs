@@ -21,7 +21,7 @@ use evm::{
     CreateScheme, ExitError, ExitReason, Transfer,
 };
 use memory::MemoryStackStateWapper;
-use rt_evm_config::CHECK_POINT_CONFIG;
+use rt_evm_config::{CHECK_POINT_CONFIG, CURRENT_BLOCK_HEIGHT};
 use rt_evm_model::{
     codec::hex_encode,
     lazy::CHAIN_ID,
@@ -33,12 +33,12 @@ use rt_evm_model::{
         data_gas_cost, Account, Config, ExecResp, Hasher, LegacyTransaction,
         SignatureComponents, SignedTransaction, TransactionAction, TxResp,
         UnverifiedTransaction, GAS_CALL_TRANSACTION, GAS_CREATE_TRANSACTION, H160, H256,
-        MIN_TRANSACTION_GAS_LIMIT_V0, MIN_TRANSACTION_GAS_LIMIT_V1, U256,
+        MIN_TRANSACTION_GAS_LIMIT, U256,
     },
 };
 use rt_evm_storage::ethabi::{Function, Param, ParamType, StateMutability, Token};
 use ruc::{eg, pnk, Result, RucResult};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::atomic::Ordering};
 
 pub struct PayFee {
     /// Source address.
@@ -469,13 +469,8 @@ impl RTEvmExecutor {
 
         #[cfg(not(feature = "benchmark"))]
         if tx.transaction.unsigned.nonce() != &current_nonce {
-            let min_gas_limit = if backend.block_number()
-                < U256::from(CHECK_POINT_CONFIG.min_gas_limit_v1_height)
-            {
-                U256::from(MIN_TRANSACTION_GAS_LIMIT_V0)
-            } else {
-                U256::from(MIN_TRANSACTION_GAS_LIMIT_V1)
-            };
+            let min_gas_limit = U256::from(MIN_TRANSACTION_GAS_LIMIT);
+
             let fee_cost = tx_gas_price.saturating_mul(min_gas_limit);
             account.balance = account.balance.saturating_sub(fee_cost);
             account.nonce = current_nonce + U256::one();
@@ -520,27 +515,72 @@ impl RTEvmExecutor {
             .map(|x| (x.address, x.storage_keys))
             .collect::<Vec<_>>();
 
-        let (exit, res) = match tx.transaction.unsigned.action() {
-            TransactionAction::Call(addr) => executor.transact_call(
-                tx.sender,
-                *addr,
-                *tx.transaction.unsigned.value(),
-                tx.transaction.unsigned.data().to_vec(),
-                gas_limit.as_u64(),
-                access_list,
-            ),
-            TransactionAction::Create => executor.transact_create(
-                tx.sender,
-                *tx.transaction.unsigned.value(),
-                tx.transaction.unsigned.data().to_vec(),
-                gas_limit.as_u64(),
-                access_list,
-            ),
+        let (base_gas, exit, res) = match tx.transaction.unsigned.action() {
+            TransactionAction::Call(addr) => {
+                let data = tx.transaction.unsigned.data().to_vec();
+                let base_gas = GAS_CALL_TRANSACTION + data_gas_cost(&data);
+                let (exit, res) = executor.transact_call(
+                    tx.sender,
+                    *addr,
+                    *tx.transaction.unsigned.value(),
+                    data,
+                    gas_limit.as_u64(),
+                    access_list,
+                );
+
+                (base_gas, exit, res)
+            }
+            TransactionAction::Create => {
+                let data = tx.transaction.unsigned.data().to_vec();
+                let base_gas =
+                    GAS_CREATE_TRANSACTION + GAS_CALL_TRANSACTION + data_gas_cost(&data);
+                let (exit, res) = executor.transact_create(
+                    tx.sender,
+                    *tx.transaction.unsigned.value(),
+                    data,
+                    gas_limit.as_u64(),
+                    access_list,
+                );
+                (base_gas, exit, res)
+            }
         };
         let transfers = executor.state().transfers.clone();
+        let current_height = CURRENT_BLOCK_HEIGHT.load(Ordering::Relaxed);
 
-        let remained_gas = executor.gas();
-        let used_gas = executor.used_gas();
+        let mut remained_gas = executor.gas();
+        let mut used_gas = executor.used_gas();
+
+        if current_height >= CHECK_POINT_CONFIG.min_gas_price_v0_height {
+            used_gas += base_gas;
+            if remained_gas < base_gas {
+                let min_gas_limit = U256::from(MIN_TRANSACTION_GAS_LIMIT);
+                let fee_cost = tx_gas_price.saturating_mul(min_gas_limit);
+                account.balance = account.balance.saturating_sub(fee_cost);
+                account.nonce = current_nonce + U256::one();
+                backend.save_account(sender, &account);
+                return (
+                    TxResp {
+                        exit_reason: ExitReason::Error(ExitError::Other(
+                            "invalid nonce".into(),
+                        )),
+                        gas_used: min_gas_limit.as_u64(),
+                        remain_gas: u64::default(),
+                        fee_cost,
+                        removed: false,
+                        ret: vec![],
+                        logs: vec![],
+                        code_address: None,
+                    },
+                    PayFee {
+                        source: sender,
+                        value: fee_cost,
+                    },
+                    vec![],
+                );
+            } else {
+                remained_gas -= base_gas;
+            }
+        }
 
         let code_addr = if tx.transaction.unsigned.action() == &TransactionAction::Create
             && exit.is_succeed()

@@ -9,7 +9,7 @@ use rt_evm_model::{
     types::{
         Account, BigEndianHash, Block, BlockNumber, ExecutorContext, Hash, Hasher,
         Header, Proposal, Receipt, SignedTransaction, TxResp, H160, H256,
-        MAX_BLOCK_GAS_LIMIT, NIL_HASH, U256, WORLD_STATE_META_KEY,
+        MAX_BLOCK_GAS_LIMIT, MIN_GAS_PRICE, NIL_HASH, U256, WORLD_STATE_META_KEY,
     },
 };
 use rt_evm_storage::{
@@ -169,7 +169,7 @@ impl APIAdapter for DefaultAPIAdapter {
     ) -> Result<TxResp> {
         let mut exec_ctx = ExecutorContext::from(&mock_header);
         exec_ctx.origin = from.unwrap_or_default();
-        exec_ctx.gas_price = gas_price.unwrap_or_else(U256::one);
+        exec_ctx.gas_price = gas_price.unwrap_or_else(|| U256::from(MIN_GAS_PRICE));
 
         let backend = RTEvmExecutorAdapter::from_root(
             state_root,

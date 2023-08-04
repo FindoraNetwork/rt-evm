@@ -7,8 +7,7 @@ use rt_evm_model::{
     traits::TxStorage,
     types::{
         Account, BlockNumber, Hash, SignedTransaction as SignedTx, H160,
-        MAX_BLOCK_GAS_LIMIT, MIN_TRANSACTION_GAS_LIMIT_V0, MIN_TRANSACTION_GAS_LIMIT_V1,
-        U256,
+        MAX_BLOCK_GAS_LIMIT, MIN_GAS_PRICE, MIN_TRANSACTION_GAS_LIMIT, U256,
     },
 };
 use rt_evm_storage::{get_account_by_backend, MptStore, Storage};
@@ -246,24 +245,24 @@ impl TinyMempool {
     pub fn tx_pre_check(&self, tx: &SignedTx, signature_checked: bool) -> Result<()> {
         let utx = &tx.transaction;
 
-        let gas_price = utx.unsigned.gas_price();
+        let current_height = CURRENT_BLOCK_HEIGHT.load(AtoOrd::Relaxed);
 
-        if gas_price == U256::zero() {
-            return Err(eg!("The 'gas price' is zero"));
+        let gas_price = utx.unsigned.gas_price();
+        if current_height < CHECK_POINT_CONFIG.min_gas_price_v0_height {
+            if gas_price == U256::zero() {
+                return Err(eg!("The 'gas price' is zero"));
+            }
+        } else {
+            if gas_price < MIN_GAS_PRICE.into() {
+                return Err(eg!("The 'gas price' is zero"));
+            }
         }
 
         if gas_price >= U256::from(u64::MAX) {
             return Err(eg!("The 'gas price' exceeds the limition(u64::MAX)"));
         }
 
-        let current_height = CURRENT_BLOCK_HEIGHT.load(AtoOrd::Relaxed);
-
-        let min_gas_limit =
-            if current_height < CHECK_POINT_CONFIG.min_gas_limit_v1_height {
-                U256::from(MIN_TRANSACTION_GAS_LIMIT_V0)
-            } else {
-                U256::from(MIN_TRANSACTION_GAS_LIMIT_V1)
-            };
+        let min_gas_limit = U256::from(MIN_TRANSACTION_GAS_LIMIT);
 
         let gas_limit = *utx.unsigned.gas_limit();
 

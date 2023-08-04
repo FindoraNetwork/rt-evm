@@ -20,7 +20,7 @@ pub static CHECK_POINT_CONFIG: Lazy<CheckPointConfig> = Lazy::new(|| {
 #[derive(Debug, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct CheckPointConfig {
-    pub min_gas_limit_v1_height: u64,
+    pub min_gas_price_v0_height: u64,
 }
 impl CheckPointConfig {
     pub fn load_from_file(filename: &str) -> Result<Self> {

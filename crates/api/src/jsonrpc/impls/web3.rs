@@ -15,7 +15,7 @@ use rt_evm_model::{
     types::{
         Block, BlockNumber, Bytes, ExitError, ExitReason, Hash, Header, Hex, Receipt,
         SignedTransaction, TxResp, UnverifiedTransaction, H160, H256, H64,
-        MAX_BLOCK_GAS_LIMIT, MAX_PRIORITY_FEE_PER_GAS, U256,
+        MAX_BLOCK_GAS_LIMIT, MAX_PRIORITY_FEE_PER_GAS, MIN_GAS_PRICE, U256,
     },
 };
 use ruc::*;
@@ -240,12 +240,15 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         req: Web3CallRequest,
         number: Option<BlockId>,
     ) -> RpcResult<Hex> {
-        if req.gas_price.unwrap_or_default() > U256::from(u64::MAX) {
-            return Err(Error::Custom("The gas price is too large".to_string()));
+        if let Some(gas_price) = req.gas_price {
+            if gas_price > U256::from(u64::MAX) {
+                return Err(Error::Custom("The gas price is too large".to_string()));
+            }
         }
-
-        if req.gas.unwrap_or_default() > U256::from(MAX_BLOCK_GAS_LIMIT) {
-            return Err(Error::Custom("The gas limit is too large".to_string()));
+        if let Some(gas) = req.gas {
+            if gas > U256::from(MAX_BLOCK_GAS_LIMIT) {
+                return Err(Error::Custom("The gas limit is too large".to_string()));
+            }
         }
 
         let data_bytes = req
@@ -398,7 +401,7 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
     }
 
     async fn gas_price(&self) -> RpcResult<U256> {
-        Ok(U256::from(8u64))
+        Ok(U256::from(MIN_GAS_PRICE))
     }
 
     async fn get_max_priority_fee_per_gas(&self) -> RpcResult<U256> {

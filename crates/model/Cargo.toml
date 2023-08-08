@@ -22,5 +22,6 @@ serde = { workspace = true }
 once_cell = { workspace = true }
 
 rt-evm-crypto = { workspace = true }
+rt-evm-config = { workspace = true }
 
 [dev-dependencies]

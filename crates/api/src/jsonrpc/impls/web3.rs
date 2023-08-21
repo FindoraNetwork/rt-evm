@@ -16,7 +16,7 @@ use rt_evm_model::{
     types::{
         Block, BlockNumber, Bytes, ExitError, ExitReason, Hash, Header, Hex, Receipt,
         SignedTransaction, TxResp, UnverifiedTransaction, H160, H256, H64,
-        MAX_BLOCK_GAS_LIMIT, MAX_PRIORITY_FEE_PER_GAS, MIN_GAS_PRICE, U256,
+        MAX_BLOCK_GAS_LIMIT, MIN_GAS_PRICE, U256,
     },
 };
 use ruc::*;

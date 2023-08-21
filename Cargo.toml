@@ -27,6 +27,7 @@ ethabi = "18.0.0"
 
 beef = "0.5"
 jsonrpsee = { version = "0.15", features = ["http-server", "macros", "ws-server"] }
+anyhow = "1"
 
 toml = "0.7.6"
 rlp = "0.5"

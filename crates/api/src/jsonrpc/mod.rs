@@ -86,9 +86,6 @@ pub trait RTEvmWeb3Rpc {
     #[method(name = "eth_gasPrice")]
     async fn gas_price(&self) -> RpcResult<U256>;
 
-    #[method(name = "eth_maxPriorityFeePerGas")]
-    async fn get_max_priority_fee_per_gas(&self) -> RpcResult<U256>;
-
     #[method(name = "eth_getLogs")]
     async fn get_logs(&self, filter: Web3Filter) -> RpcResult<Vec<Web3Log>>;
 

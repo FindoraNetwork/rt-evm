@@ -6,6 +6,7 @@ use crate::jsonrpc::{
     },
     RTEvmWeb3RpcServer, RpcResult,
 };
+use anyhow::anyhow;
 use jsonrpsee::core::Error;
 use rt_evm_model::{
     async_trait,
@@ -72,15 +73,19 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
         let utx = UnverifiedTransaction::decode(&tx.as_bytes())
             .map_err(|e| Error::Custom(e.to_string()))?;
 
-        let stx = SignedTransaction::try_from(utx)
-            .map_err(|e| Error::Custom(e.to_string()))?;
-        let hash = stx.transaction.hash;
+        if utx.unsigned.is_legacy() {
+            let stx = SignedTransaction::try_from(utx)
+                .map_err(|e| Error::Custom(e.to_string()))?;
+            let hash = stx.transaction.hash;
 
-        self.adapter
-            .insert_signed_tx(stx)
-            .map_err(|e| Error::Custom(e.to_string()))?;
+            self.adapter
+                .insert_signed_tx(stx)
+                .map_err(|e| Error::Custom(e.to_string()))?;
 
-        Ok(hash)
+            Ok(hash)
+        } else {
+            Err(Error::Transport(anyhow!("Not a legacy transaction",)))
+        }
     }
 
     async fn get_tx_by_hash(&self, hash: H256) -> RpcResult<Option<Web3Transaction>> {
@@ -402,10 +407,6 @@ impl<Adapter: APIAdapter + 'static> RTEvmWeb3RpcServer for Web3RpcImpl<Adapter> 
 
     async fn gas_price(&self) -> RpcResult<U256> {
         Ok(U256::from(MIN_GAS_PRICE))
-    }
-
-    async fn get_max_priority_fee_per_gas(&self) -> RpcResult<U256> {
-        Ok(U256::from(MAX_PRIORITY_FEE_PER_GAS))
     }
 
     async fn get_logs(&self, filter: Web3Filter) -> RpcResult<Vec<Web3Log>> {

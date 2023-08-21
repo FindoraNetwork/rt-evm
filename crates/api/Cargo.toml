@@ -8,6 +8,7 @@ beef = { workspace = true }
 tokio = { workspace = true }
 jsonrpsee = { workspace = true }
 
+anyhow = { workspace = true }
 ruc = { workspace = true }
 once_cell = { workspace = true }
 parking_lot = { workspace = true }

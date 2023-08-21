@@ -2,11 +2,12 @@ pub use ethereum::{AccessList, AccessListItem, Account};
 pub use evm::{
     backend::Log, Config, ExitError, ExitFatal, ExitReason, ExitRevert, ExitSucceed,
 };
+use rt_evm_config::CHECK_POINT_CONFIG;
 
-use rlp_derive::{RlpDecodable, RlpEncodable};
-
+use super::MIN_GAS_PRICE;
 use crate::codec::ProtocolCodec;
 use crate::types::{Hash, Hasher, Header, MerkleRoot, Proposal, H160, U256};
+use rlp_derive::{RlpDecodable, RlpEncodable};
 
 pub const WORLD_STATE_META_KEY: [u8; 1] = [0];
 
@@ -79,6 +80,11 @@ pub struct ExecutorContext {
 
 impl From<&Proposal> for ExecutorContext {
     fn from(p: &Proposal) -> Self {
+        let gas_price = if p.number < CHECK_POINT_CONFIG.min_gas_price_v0_height {
+            U256::zero()
+        } else {
+            U256::from(MIN_GAS_PRICE)
+        };
         ExecutorContext {
             block_number: p.number.into(),
             block_hash: Hasher::digest(p.encode().unwrap()),
@@ -87,7 +93,7 @@ impl From<&Proposal> for ExecutorContext {
             chain_id: p.chain_id.into(),
             difficulty: U256::one(),
             origin: p.proposer,
-            gas_price: U256::one(),
+            gas_price,
             block_gas_limit: p.gas_limit,
             block_base_fee_per_gas: p.base_fee_per_gas,
             logs: Vec::new(),
@@ -97,6 +103,11 @@ impl From<&Proposal> for ExecutorContext {
 
 impl From<&Header> for ExecutorContext {
     fn from(h: &Header) -> ExecutorContext {
+        let gas_price = if h.number < CHECK_POINT_CONFIG.min_gas_price_v0_height {
+            U256::zero()
+        } else {
+            U256::from(MIN_GAS_PRICE)
+        };
         ExecutorContext {
             block_number: h.number.into(),
             block_hash: Hasher::digest(h.encode().unwrap()),
@@ -105,7 +116,7 @@ impl From<&Header> for ExecutorContext {
             chain_id: h.chain_id.into(),
             difficulty: U256::one(),
             origin: h.proposer,
-            gas_price: U256::one(),
+            gas_price,
             block_gas_limit: h.gas_limit,
             block_base_fee_per_gas: h.base_fee_per_gas,
             logs: Vec::new(),

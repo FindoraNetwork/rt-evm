@@ -254,7 +254,7 @@ impl TinyMempool {
             }
         } else {
             if gas_price < MIN_GAS_PRICE.into() {
-                return Err(eg!("The 'gas price' is zero"));
+                return Err(eg!("gas_price to low"));
             }
         }
 

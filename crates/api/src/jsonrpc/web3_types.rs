@@ -107,7 +107,9 @@ impl From<SignedTransaction> for Web3Transaction {
             access_list: Some(stx.transaction.unsigned.access_list()),
             chain_id: Some(stx.transaction.chain_id.into()),
             standard_v: None,
-            v: signature.standard_v.into(),
+            v: signature
+                .add_chain_replay_protection(Some(stx.transaction.chain_id.into()))
+                .into(),
             r: signature.r.as_slice().into(),
             s: signature.s.as_slice().into(),
         }
@@ -147,7 +149,9 @@ impl From<(SignedTransaction, Receipt)> for Web3Transaction {
             access_list: Some(stx.transaction.unsigned.access_list()),
             chain_id: Some(stx.transaction.chain_id.into()),
             standard_v: None,
-            v: signature.standard_v.into(),
+            v: signature
+                .add_chain_replay_protection(Some(stx.transaction.chain_id.into()))
+                .into(),
             r: signature.r.as_slice().into(),
             s: signature.s.as_slice().into(),
         }

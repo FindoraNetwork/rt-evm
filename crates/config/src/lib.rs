@@ -17,10 +17,11 @@ pub static CHECK_POINT_CONFIG: Lazy<CheckPointConfig> = Lazy::new(|| {
     pnk!(CheckPointConfig::load_from_file(filename))
 });
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct CheckPointConfig {
     pub min_gas_price_v0_height: u64,
+    pub fix_pay_fee_height: u64,
 }
 impl CheckPointConfig {
     pub fn load_from_file(filename: &str) -> Result<Self> {

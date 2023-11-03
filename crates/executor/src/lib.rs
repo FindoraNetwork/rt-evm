@@ -21,6 +21,7 @@ use evm::{
     CreateScheme, ExitError, ExitReason, Transfer,
 };
 use memory::MemoryStackStateWapper;
+use rt_evm_config::{CHECK_POINT_CONFIG, CURRENT_BLOCK_HEIGHT};
 use rt_evm_model::{
     codec::hex_encode,
     lazy::CHAIN_ID,
@@ -37,8 +38,9 @@ use rt_evm_model::{
 };
 use rt_evm_storage::ethabi::{Function, Param, ParamType, StateMutability, Token};
 use ruc::{eg, pnk, Result, RucResult};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::atomic::Ordering as AtoOrd};
 
+#[derive(Debug)]
 pub struct PayFee {
     /// Source address.
     pub source: H160,
@@ -188,55 +190,109 @@ impl Executor for RTEvmExecutor {
             }
         }
 
-        let mut pay_fees = vec![];
-        let mut transfers = vec![];
-        for tx in txs.iter() {
-            backend.set_gas_price(tx.transaction.unsigned.gas_price());
-            backend.set_origin(tx.sender);
+        let current_height = CURRENT_BLOCK_HEIGHT.load(AtoOrd::Relaxed);
+        if current_height < CHECK_POINT_CONFIG.fix_pay_fee_height {
+            let mut pay_fees = vec![];
+            let mut transfers = vec![];
+            for tx in txs.iter() {
+                backend.set_gas_price(tx.transaction.unsigned.gas_price());
+                backend.set_origin(tx.sender);
 
-            let (mut r, pay_fee, pay_value) =
-                Self::evm_exec(backend, &config, &precompiles, tx);
-            println!("exec {} {:?}", tx.transaction.hash, r);
-            pay_fees.push(pay_fee);
-            transfers.extend(pay_value);
-            backend.commit();
-
-            r.logs = backend.get_logs();
-            gas += r.gas_used;
-            fee = fee.checked_add(r.fee_cost).unwrap_or(U256::max_value());
-
-            tx_hashes.push(tx.transaction.hash);
-            receipt_hashes.push(Hasher::digest(&r.ret));
-
-            res.push(r);
-        }
-        if let Some(addr) = CONSTANT_ADDR.get() {
-            for it in transfers.iter() {
-                backend.set_gas_price(U256::from(u64::MAX));
-                backend.set_origin(*SYSTEM_ADDR);
-                pnk!(Self::pay_value(
-                    backend,
-                    &config,
-                    &precompiles,
-                    *addr,
-                    it.source,
-                    it.target,
-                    it.value,
-                ));
+                let (mut r, pay_fee, pay_value) =
+                    Self::evm_exec(backend, &config, &precompiles, tx);
+                println!(
+                    "exec {:?} {:?} {:?} {:?}",
+                    tx.transaction.hash, r, pay_fee, pay_value
+                );
+                pay_fees.push(pay_fee);
+                transfers.extend(pay_value);
                 backend.commit();
+
+                r.logs = backend.get_logs();
+                gas += r.gas_used;
+                fee = fee.checked_add(r.fee_cost).unwrap_or(U256::max_value());
+
+                tx_hashes.push(tx.transaction.hash);
+                receipt_hashes.push(Hasher::digest(&r.ret));
+
+                res.push(r);
             }
-            for it in pay_fees.iter() {
-                backend.set_gas_price(U256::from(u64::MAX));
-                backend.set_origin(*SYSTEM_ADDR);
-                pnk!(Self::pay_fee(
-                    backend,
-                    &config,
-                    &precompiles,
-                    *addr,
-                    it.source,
-                    it.value
-                ));
+            if let Some(addr) = CONSTANT_ADDR.get() {
+                for it in transfers.iter() {
+                    backend.set_gas_price(U256::from(u64::MAX));
+                    backend.set_origin(*SYSTEM_ADDR);
+                    pnk!(Self::pay_value(
+                        backend,
+                        &config,
+                        &precompiles,
+                        *addr,
+                        it.source,
+                        it.target,
+                        it.value,
+                    ));
+                    backend.commit();
+                }
+                for it in pay_fees.iter() {
+                    backend.set_gas_price(U256::from(u64::MAX));
+                    backend.set_origin(*SYSTEM_ADDR);
+                    pnk!(Self::pay_fee(
+                        backend,
+                        &config,
+                        &precompiles,
+                        *addr,
+                        it.source,
+                        it.value
+                    ));
+                    backend.commit();
+                }
+            }
+        } else {
+            for tx in txs.iter() {
+                backend.set_gas_price(tx.transaction.unsigned.gas_price());
+                backend.set_origin(tx.sender);
+
+                let (mut r, pay_fee, pay_values) =
+                    Self::evm_exec(backend, &config, &precompiles, tx);
+                println!(
+                    "exec {:?} {:?} {:?} {:?}",
+                    tx.transaction.hash, r, pay_fee, pay_values
+                );
+                if let Some(addr) = CONSTANT_ADDR.get() {
+                    for it in pay_values.iter() {
+                        backend.set_gas_price(U256::from(u64::MAX));
+                        backend.set_origin(*SYSTEM_ADDR);
+                        pnk!(Self::pay_value(
+                            backend,
+                            &config,
+                            &precompiles,
+                            *addr,
+                            it.source,
+                            it.target,
+                            it.value,
+                        ));
+                    }
+                    backend.set_gas_price(U256::from(u64::MAX));
+                    backend.set_origin(*SYSTEM_ADDR);
+                    pnk!(Self::pay_fee(
+                        backend,
+                        &config,
+                        &precompiles,
+                        *addr,
+                        pay_fee.source,
+                        pay_fee.value
+                    ));
+                }
+
                 backend.commit();
+
+                r.logs = backend.get_logs();
+                gas += r.gas_used;
+                fee = fee.checked_add(r.fee_cost).unwrap_or(U256::max_value());
+
+                tx_hashes.push(tx.transaction.hash);
+                receipt_hashes.push(Hasher::digest(&r.ret));
+
+                res.push(r);
             }
         }
 
@@ -496,7 +552,10 @@ impl RTEvmExecutor {
             );
         }
 
-        account.balance = account.balance.saturating_sub(prepay_gas);
+        let current_height = CURRENT_BLOCK_HEIGHT.load(AtoOrd::Relaxed);
+        if current_height < CHECK_POINT_CONFIG.fix_pay_fee_height {
+            account.balance = account.balance.saturating_sub(prepay_gas);
+        }
         backend.save_account(sender, &account);
 
         let metadata = StackSubstateMetadata::new(gas_limit.as_u64(), config);
@@ -559,10 +618,12 @@ impl RTEvmExecutor {
             remain_gas = U256::from(remained_gas)
                 .checked_mul(tx_gas_price)
                 .unwrap_or_else(U256::max_value);
-            account.balance = account
-                .balance
-                .checked_add(remain_gas)
-                .unwrap_or_else(U256::max_value);
+            if current_height < CHECK_POINT_CONFIG.fix_pay_fee_height {
+                account.balance = account
+                    .balance
+                    .checked_add(remain_gas)
+                    .unwrap_or_else(U256::max_value);
+            }
         }
 
         backend.save_account(tx.sender, &account);
